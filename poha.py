@@ -7,6 +7,7 @@ import math
 # --- UTILITY AND SETUP FUNCTIONS ---
 
 def format_indian_currency(amount):
+    """Format a number into Indian currency style with ₹ symbol."""
     if not isinstance(amount, (int, float)) or pd.isna(amount) or math.isinf(amount):
         return "N/A"
     amount_str = f"{abs(amount):.2f}"
@@ -26,6 +27,7 @@ def format_indian_currency(amount):
 
 st.set_page_config(page_title="Poha Manufacturing Financial Dashboard", page_icon="🌾", layout="wide")
 
+# Custom CSS for tooltips
 st.markdown('''
 <style>
 .tooltip-container { position: relative; display: inline-block; cursor: help; margin-left: 5px; }
@@ -38,7 +40,8 @@ st.markdown('''
 
 # --- FINANCIAL MODEL CALCULATION FUNCTION ---
 def run_financial_model(inputs):
-    # Explicitly unpack every input variable to ensure they are defined in the local scope.
+    """Calculate financial metrics based on input parameters."""
+    # Unpack inputs
     hours_per_day = inputs['hours_per_day']
     days_per_month = inputs['days_per_month']
     poha_rate_kg_hr = inputs['poha_rate_kg_hr']
@@ -67,7 +70,7 @@ def run_financial_model(inputs):
     debtor_days = inputs['debtor_days']
     creditor_days = inputs['creditor_days']
 
-    # Start Calculations
+    # Calculations
     total_capex = land_cost + civil_work_cost + machinery_cost
     if any(v is None or (isinstance(v, (int, float)) and v <= 0) for v in [paddy_yield, poha_price, total_capex]):
         return {'error': 'Paddy Yield, Poha Price, and Capex must be greater than 0.'}
@@ -130,27 +133,28 @@ def run_financial_model(inputs):
     net_profit_margin = (net_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     ebitda = operating_income_ebit + total_annual_depreciation
     ebitda_margin = (ebitda / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
-    roi = (net_profit / total_capex) * 100 if total_capex > 0 else float('inf')
     roe = (net_profit / initial_equity_contribution) * 100 if initial_equity_contribution > 0 else float('inf')
     gross_profit_margin = (annual_gross_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
 
     return {**inputs, **locals()}
 
-# --- Key Ratio Definitions ---
+# --- Key Ratio Definitions (ROI Removed) ---
 key_ratios_info = {
     "Net Profit": {"formula": "Net Profit = EBT - Taxes", "explanation": "The final 'bottom line' profit after all costs."},
     "EBITDA": {"formula": "EBITDA = EBIT + Depreciation", "explanation": "Measures operational profitability before non-cash expenses."},
-    "ROI": {"formula": "ROI = (Net Profit / Total Capex) * 100", "explanation": "Measures return on the initial capital expenditure."},
     "ROCE": {"formula": "ROCE = (EBIT / Capital Employed) * 100", "explanation": "Measures how effectively capital is used to generate profits."},
     "ROE": {"formula": "ROE = (Net Profit / Initial Equity) * 100", "explanation": "Shows profitability relative to shareholder equity."}
 }
 
 # --- Custom Metric Display Function ---
 def custom_metric(col, label, value, sub_value, info_key):
+    """Display a metric with a tooltip in a specified column."""
     formula, explanation = key_ratios_info[info_key].values()
     tooltip_content = f"<b>Formula:</b> {formula}<br><br><b>Explanation:</b> {explanation}"
-    try: numeric_value = float(sub_value.replace('%', '').replace(' Margin', '').strip())
-    except: numeric_value = 0
+    try:
+        numeric_value = float(sub_value.replace('%', '').replace(' Margin', '').strip())
+    except:
+        numeric_value = 0
     color = 'green' if numeric_value >= 0 else 'red'
     with col:
         st.markdown(f"""
@@ -162,7 +166,7 @@ def custom_metric(col, label, value, sub_value, info_key):
             <p style="font-size: 14px; color: {color}; margin-top: 0px; line-height: 1.2;">{sub_value}</p>
             """, unsafe_allow_html=True)
 
-# --- START OF APP LAYOUT ---
+# --- APP LAYOUT ---
 st.title("🌾 Poha Manufacturing Financial Dashboard")
 st.markdown("### A Comprehensive Financial Model for Decision Making")
 
@@ -173,13 +177,18 @@ scenarios = {
     'Pessimistic': {'paddy_rate': 25.0, 'poha_price': 42.0, 'paddy_yield': 60.0, 'interest_rate': 10.0, 'equity_contrib': 20.0, 'packaging_cost': 0.6, 'fuel_cost': 0.0, 'other_var_cost': 0.0, 'byproduct_rate_kg': 4.0}
 }
 st.sidebar.header("⚙️ Input Parameters")
-if 'scenario_choice' not in st.session_state: st.session_state.scenario_choice = 'Base Case'
+if 'scenario_choice' not in st.session_state:
+    st.session_state.scenario_choice = 'Base Case'
+
 def update_scenario():
     scenario_name = st.session_state.scenario_choice
     if scenario_name in scenarios:
-        for key, value in scenarios[scenario_name].items(): st.session_state[key] = value
+        for key, value in scenarios[scenario_name].items():
+            st.session_state[key] = value
+
 for key in scenarios['Base Case']:
-    if key not in st.session_state: st.session_state[key] = scenarios['Base Case'][key]
+    if key not in st.session_state:
+        st.session_state[key] = scenarios['Base Case'][key]
 st.sidebar.selectbox("Select Scenario", list(scenarios.keys()), key='scenario_choice', on_change=update_scenario)
 
 # --- SIDEBAR INPUTS ---
@@ -227,22 +236,23 @@ results = run_financial_model(all_inputs)
 if 'error' in results:
     st.error(results['error'])
 else:
-    # --- KPI DISPLAY ---
+    # --- KPI DISPLAY (ROI Removed) ---
     st.header("📈 Key Performance Indicators (Annual)")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     custom_metric(col1, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.2f}% Margin", "Net Profit")
     custom_metric(col2, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.2f}% Margin", "EBITDA")
-    custom_metric(col3, "ROI", f"{results['roi']:.2f}%", "", "ROI")
-    custom_metric(col4, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
-    custom_metric(col5, "ROE", f"{results['roe']:.2f}%", "", "ROE")
+    custom_metric(col3, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
+    custom_metric(col4, "ROE", f"{results['roe']:.2f}%", "", "ROE")
 
     # --- Daily, Monthly, Annual Summary ---
     st.markdown("---")
     st.header("📊 Daily, Monthly, and Annual Summary")
-    summary_data = {"Metric": ["Poha Production (kg)", "Paddy Consumption (kg)", "Total Revenue", "COGS", "Gross Profit"],
-                  "Daily": [f"{results['daily_poha_production']:,.0f}", f"{results['daily_paddy_consumption']:,.0f}", format_indian_currency(results['total_daily_revenue']), format_indian_currency(results['daily_cogs']), format_indian_currency(results['daily_gross_profit'])],
-                  "Monthly": [f"{results['monthly_poha_production']:,.0f}", f"{results['monthly_paddy_consumption']:,.0f}", format_indian_currency(results['total_monthly_revenue']), format_indian_currency(results['monthly_cogs']), format_indian_currency(results['monthly_gross_profit'])],
-                  "Annual": [f"{results['annual_poha_production']:,.0f}", f"{results['annual_paddy_consumption']:,.0f}", format_indian_currency(results['total_annual_revenue']), format_indian_currency(results['annual_cogs']), format_indian_currency(results['annual_gross_profit'])]}
+    summary_data = {
+        "Metric": ["Poha Production (kg)", "Paddy Consumption (kg)", "Total Revenue", "COGS", "Gross Profit"],
+        "Daily": [f"{results['daily_poha_production']:,.0f}", f"{results['daily_paddy_consumption']:,.0f}", format_indian_currency(results['total_daily_revenue']), format_indian_currency(results['daily_cogs']), format_indian_currency(results['daily_gross_profit'])],
+        "Monthly": [f"{results['monthly_poha_production']:,.0f}", f"{results['monthly_paddy_consumption']:,.0f}", format_indian_currency(results['total_monthly_revenue']), format_indian_currency(results['monthly_cogs']), format_indian_currency(results['monthly_gross_profit'])],
+        "Annual": [f"{results['annual_poha_production']:,.0f}", f"{results['annual_paddy_consumption']:,.0f}", format_indian_currency(results['total_annual_revenue']), format_indian_currency(results['annual_cogs']), format_indian_currency(results['annual_gross_profit'])]
+    }
     st.dataframe(pd.DataFrame(summary_data), hide_index=True, use_container_width=True)
 
     # --- BREAKEVEN ANALYSIS ---
@@ -279,29 +289,82 @@ else:
     base_value = all_inputs[var_key]
     range_values = np.linspace(base_value * (1 + sensitivity_range[0] / 100), base_value * (1 + sensitivity_range[1] / 100), 11)
     sensitivity_results_list = [run_financial_model({**all_inputs, var_key: val}) for val in range_values]
-    sensitivity_data = [{'Variable Value': res[var_key], 'Net Profit': res.get('net_profit', 0)} for res in sensitivity_results_list if 'error' not in res]
-    sensitivity_df = pd.DataFrame(sensitivity_data).rename(columns={'Variable Value': sensitivity_variable})
+
+    # Prepare numeric data for the plot
+    numeric_sensitivity_data = []
+    for val, res in zip(range_values, sensitivity_results_list):
+        if 'error' not in res:
+            numeric_sensitivity_data.append({sensitivity_variable: val, 'Net Profit': res['net_profit']})
+    numeric_sensitivity_df = pd.DataFrame(numeric_sensitivity_data)
+
+    # Prepare formatted data for the table
+    formatted_sensitivity_data = []
+    for val, res in zip(range_values, sensitivity_results_list):
+        if 'error' in res:
+            net_profit_str = "Error: Invalid Input"
+        else:
+            net_profit_str = format_indian_currency(res['net_profit'])
+        formatted_sensitivity_data.append({sensitivity_variable: val, 'Net Profit': net_profit_str})
+    formatted_sensitivity_df = pd.DataFrame(formatted_sensitivity_data)
+
     col_sens1, col_sens2 = st.columns(2)
     with col_sens1:
-        st.dataframe(sensitivity_df, column_config={sensitivity_variable: st.column_config.NumberColumn(format="%.2f"), "Net Profit": st.column_config.NumberColumn(format="₹,d")}, use_container_width=True)
+        st.dataframe(
+            formatted_sensitivity_df,
+            column_config={
+                sensitivity_variable: st.column_config.NumberColumn(format="%.2f"),
+                "Net Profit": st.column_config.TextColumn()
+            },
+            use_container_width=True
+        )
     with col_sens2:
-        fig_sens = px.line(sensitivity_df, x=sensitivity_variable, y='Net Profit', title=f"Impact of {sensitivity_variable} on Net Profit", markers=True)
-        st.plotly_chart(fig_sens, use_container_width=True)
+        if not numeric_sensitivity_df.empty:
+            fig_sens = px.line(numeric_sensitivity_df, x=sensitivity_variable, y='Net Profit', title=f"Impact of {sensitivity_variable} on Net Profit", markers=True)
+            st.plotly_chart(fig_sens, use_container_width=True)
+        else:
+            st.write("No valid data points for plotting due to input errors.")
 
     # --- P&L and Balance Sheet ---
     st.markdown("---")
     col_pnl, col_bs = st.columns(2)
     with col_pnl:
         st.header("💰 Annual Profit & Loss Statement")
-        pnl_data = {"Metric": ["Total Revenue", "COGS", "**Gross Profit**", "Fixed OpEx", "Variable OpEx", "Depreciation", "**EBIT**", "Total Interest", "**EBT**", "Taxes", "**Net Profit**"],
-                    "Amount (INR)": [format_indian_currency(results['total_annual_revenue']), f"({format_indian_currency(results['annual_cogs'])})", f"**{format_indian_currency(results['annual_gross_profit'])}**", f"({format_indian_currency(results['annual_fixed_operating_costs'])})", f"({format_indian_currency(results['annual_variable_operating_costs_total'])})", f"({format_indian_currency(results['total_annual_depreciation'])})", f"**{format_indian_currency(results['operating_income_ebit'])}**", f"({format_indian_currency(results['annual_interest_expense'])})", f"**{format_indian_currency(results['earnings_before_tax_ebt'])}**", f"({format_indian_currency(results['taxes'])})", f"**{format_indian_currency(results['net_profit'])}**"]}
+        pnl_data = {
+            "Metric": ["Total Revenue", "COGS", "**Gross Profit**", "Fixed OpEx", "Variable OpEx", "Depreciation", "**EBIT**", "Total Interest", "**EBT**", "Taxes", "**Net Profit**"],
+            "Amount (INR)": [
+                format_indian_currency(results['total_annual_revenue']),
+                f"({format_indian_currency(results['annual_cogs'])})",
+                f"**{format_indian_currency(results['annual_gross_profit'])}**",
+                f"({format_indian_currency(results['annual_fixed_operating_costs'])})",
+                f"({format_indian_currency(results['annual_variable_operating_costs_total'])})",
+                f"({format_indian_currency(results['total_annual_depreciation'])})",
+                f"**{format_indian_currency(results['operating_income_ebit'])}**",
+                f"({format_indian_currency(results['annual_interest_expense'])})",
+                f"**{format_indian_currency(results['earnings_before_tax_ebt'])}**",
+                f"({format_indian_currency(results['taxes'])})",
+                f"**{format_indian_currency(results['net_profit'])}**"
+            ]
+        }
         pnl_df = pd.DataFrame(pnl_data)
         st.dataframe(pnl_df, hide_index=True, use_container_width=True)
         st.download_button("Download P&L as CSV", pnl_df.to_csv(index=False).encode('utf-8'), "poha_pnl.csv", "text/csv")
     with col_bs:
         st.header("💼 Balance Sheet & Working Capital")
-        bs_data = {"Item": ["Total Capex", "Equity Contribution", "Debt Component", "**Total Assets**", "RM Inventory", "FG Inventory", "Receivables", "Payables", "**Net Working Capital**", "**Capital Employed**"], 
-                   "Amount (INR)": [format_indian_currency(results['total_capex']), format_indian_currency(results['initial_equity_contribution']), format_indian_currency(results['total_debt_component']), f"**{format_indian_currency(results['total_assets_for_roce'])}**", format_indian_currency(results['rm_inventory_value']), format_indian_currency(results['fg_inventory_value']), format_indian_currency(results['accounts_receivable']), f"({format_indian_currency(results['accounts_payable'])})", f"**{format_indian_currency(results['net_working_capital'])}**", f"**{format_indian_currency(results['capital_employed'])}**"]}
+        bs_data = {
+            "Item": ["Total Capex", "Equity Contribution", "Debt Component", "**Total Assets**", "RM Inventory", "FG Inventory", "Receivables", "Payables", "**Net Working Capital**", "**Capital Employed**"],
+            "Amount (INR)": [
+                format_indian_currency(results['total_capex']),
+                format_indian_currency(results['initial_equity_contribution']),
+                format_indian_currency(results['total_debt_component']),
+                f"**{format_indian_currency(results['total_assets_for_roce'])}**",
+                format_indian_currency(results['rm_inventory_value']),
+                format_indian_currency(results['fg_inventory_value']),
+                format_indian_currency(results['accounts_receivable']),
+                f"({format_indian_currency(results['accounts_payable'])})",
+                f"**{format_indian_currency(results['net_working_capital'])}**",
+                f"**{format_indian_currency(results['capital_employed'])}**"
+            ]
+        }
         st.dataframe(pd.DataFrame(bs_data), hide_index=True, use_container_width=True)
         
     # --- Detailed Calculation Breakdowns ---
