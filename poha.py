@@ -65,14 +65,12 @@ st.markdown("""
 
 def slider_number(label, min_value, max_value, value, step, key):
     col1, col2 = st.columns([2,1])
+    number_key = f"{key}_num"
     slider_key = f"{key}_slider"
-    number_key = f"{key}_input"
-    slider_val = col1.slider(label, min_value, max_value, value, step=step, key=slider_key)
-    number_val = col2.number_input(" ", min_value, max_value, value=slider_val, step=step, key=number_key, label_visibility="collapsed")
-    # If number input changed, update slider (and vice versa)
-    if number_val != slider_val:
-        slider_val = number_val
-    return slider_val
+    num = col2.number_input(label, min_value, max_value, value=value, step=step, key=number_key)
+    slider = col1.slider("", min_value, max_value, value=num, step=step, key=slider_key, label_visibility="collapsed")
+    # Always use the number input as the value (slider visually jumps to number input value)
+    return num
 
 st.sidebar.header("⚙️ Input Parameters")
 
@@ -157,7 +155,6 @@ all_inputs = dict(
 )
 
 def run_financial_model(inputs):
-    # ... (your financial model code exactly as before, but with ROI lines removed)
     hours_per_day = inputs['hours_per_day']
     days_per_month = inputs['days_per_month']
     poha_rate_kg_hr = inputs['poha_rate_kg_hr']
@@ -275,7 +272,6 @@ def custom_metric(col, label, value, sub_value, info_key):
             <p style="font-size: 14px; color: {color}; margin-top: 0px; line-height: 1.2;">{sub_value}</p>
             """, unsafe_allow_html=True)
 
-# --- MAIN DASHBOARD LOGIC (unchanged except ROI removed) ---
 results = run_financial_model(all_inputs)
 
 if 'error' in results:
