@@ -216,7 +216,6 @@ with st.sidebar.expander("Working Capital Days", True):
     all_inputs['debtor_days'] = st.number_input("Debtor Days", value=45)
     all_inputs['creditor_days'] = st.number_input("Creditor Days", value=5)
 
-st.session_state.update(all_inputs)
 results = run_financial_model(all_inputs)
 
 if 'error' in results:
