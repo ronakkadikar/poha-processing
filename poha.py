@@ -154,7 +154,6 @@ def run_financial_model(inputs):
     net_profit_margin = (net_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     ebitda = operating_income_ebit + total_annual_depreciation
     ebitda_margin = (ebitda / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
-    roi = (net_profit / total_capex) * 100 if total_capex > 0 else float('inf')
     roe = (net_profit / initial_equity_contribution) * 100 if initial_equity_contribution > 0 else float('inf')
     gross_profit_margin = (annual_gross_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
 
@@ -163,7 +162,6 @@ def run_financial_model(inputs):
 key_ratios_info = {
     "Net Profit": {"formula": "Net Profit = EBT - Taxes", "explanation": "The final 'bottom line' profit after all costs."},
     "EBITDA": {"formula": "EBITDA = EBIT + Depreciation", "explanation": "Operational profitability before non-cash expenses."},
-    "ROI": {"formula": "ROI = (Net Profit / Total Capex) * 100", "explanation": "Return on initial capital expenditure."},
     "ROCE": {"formula": "ROCE = (EBIT / Capital Employed) * 100", "explanation": "Effectiveness of capital in generating profits."},
     "ROE": {"formula": "ROE = (Net Profit / Equity) * 100", "explanation": "Profitability relative to shareholder equity."}
 }
@@ -204,41 +202,72 @@ st.sidebar.selectbox("Select Scenario", list(scenarios.keys()), key='scenario_ch
 
 all_inputs = {}
 with st.sidebar.expander("Operational Assumptions", True):
-    all_inputs['hours_per_day'] = st.slider("Production Hours per Day", 5, 24, 10)
-    all_inputs['days_per_month'] = st.slider("Operational Days per Month", 1, 31, 24)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        hours_per_day_slider = st.slider("Production Hours per Day", 5, 24, 10, step=1, key="hours_per_day_slider")
+    with col2:
+        hours_per_day = st.number_input("Exact Hours/Day", 5, 24, value=hours_per_day_slider, step=1, key="hours_per_day_input")
+    all_inputs['hours_per_day'] = hours_per_day
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        days_per_month_slider = st.slider("Operational Days per Month", 1, 31, 24, step=1, key="days_per_month_slider")
+    with col2:
+        days_per_month = st.number_input("Exact Days/Month", 1, 31, value=days_per_month_slider, step=1, key="days_per_month_input")
+    all_inputs['days_per_month'] = days_per_month
+
 with st.sidebar.expander("Production & Yield", True):
-    all_inputs['poha_rate_kg_hr'] = st.number_input("Poha Rate (kg/hr)", value=800)
-    all_inputs['paddy_yield'] = st.number_input("Paddy to Poha Yield (%)", key='paddy_yield')
-    all_inputs['byproduct_sale_percent'] = st.number_input("Byproduct Sold (%)", value=34.0)
+    all_inputs['poha_rate_kg_hr'] = st.number_input("Poha Rate (kg/hr)", value=800, step=10)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        paddy_yield_slider = st.slider("Paddy to Poha Yield (%)", 50.0, 80.0, st.session_state.get('paddy_yield', 62.0), step=0.1, key="paddy_yield_slider")
+    with col2:
+        paddy_yield = st.number_input("Exact Yield (%)", 50.0, 80.0, value=paddy_yield_slider, step=0.1, key="paddy_yield_input")
+    all_inputs['paddy_yield'] = paddy_yield
+    all_inputs['byproduct_sale_percent'] = st.number_input("Byproduct Sold (%)", value=34.0, step=0.1)
+
 with st.sidebar.expander("Financial Assumptions (INR)", True):
-    all_inputs['paddy_rate'] = st.number_input("Paddy Rate (INR/kg)", key='paddy_rate')
-    all_inputs['poha_price'] = st.number_input("Poha Selling Price (INR/kg)", key='poha_price')
-    all_inputs['byproduct_rate_kg'] = st.number_input("Byproduct Rate (INR/kg)", key='byproduct_rate_kg')
+    all_inputs['paddy_rate'] = st.number_input("Paddy Rate (INR/kg)", value=st.session_state.get('paddy_rate', 21.5), step=0.1)
+    all_inputs['poha_price'] = st.number_input("Poha Selling Price (INR/kg)", value=st.session_state.get('poha_price', 45.0), step=0.1)
+    all_inputs['byproduct_rate_kg'] = st.number_input("Byproduct Rate (INR/kg)", value=st.session_state.get('byproduct_rate_kg', 5.0), step=0.1)
+
 with st.sidebar.expander("Capital Expenditure (Capex)", True):
-    all_inputs['land_cost'] = st.number_input("Land Cost", value=0)
-    all_inputs['civil_work_cost'] = st.number_input("Civil Work Cost", value=0)
-    all_inputs['machinery_cost'] = st.number_input("Machinery Cost", value=7000000)
-    all_inputs['machinery_useful_life_years'] = st.number_input("Useful Life (Years)", value=15)
+    all_inputs['land_cost'] = st.number_input("Land Cost", value=0, step=10000)
+    all_inputs['civil_work_cost'] = st.number_input("Civil Work Cost", value=0, step=10000)
+    all_inputs['machinery_cost'] = st.number_input("Machinery Cost", value=7000000, step=10000)
+    all_inputs['machinery_useful_life_years'] = st.number_input("Useful Life (Years)", value=15, step=1)
+
 with st.sidebar.expander("Operating Costs", True):
     st.markdown("##### Granular Variable Costs (per kg)")
-    all_inputs['packaging_cost'] = st.number_input("Packaging Material", key='packaging_cost')
-    all_inputs['fuel_cost'] = st.number_input("Fuel/Power (Variable)", key='fuel_cost')
-    all_inputs['other_var_cost'] = st.number_input("Other Variable Costs", key='other_var_cost')
+    all_inputs['packaging_cost'] = st.number_input("Packaging Material", value=st.session_state.get('packaging_cost', 0.5), step=0.01)
+    all_inputs['fuel_cost'] = st.number_input("Fuel/Power (Variable)", value=st.session_state.get('fuel_cost', 0.0), step=0.01)
+    all_inputs['other_var_cost'] = st.number_input("Other Variable Costs", value=st.session_state.get('other_var_cost', 0.0), step=0.01)
     st.markdown("##### Detailed Fixed Costs (Monthly)")
-    all_inputs['rent_per_month'] = st.number_input("Rent", value=300000)
-    all_inputs['labor_per_month'] = st.number_input("Labor Wages and Salaries", value=400000)
-    all_inputs['electricity_per_month'] = st.number_input("Electricity (Fixed)", value=150000)
-    all_inputs['security_ssc_insurance_per_month'] = st.number_input("Security, SSC & Insurance", value=300000)
-    all_inputs['misc_per_month'] = st.number_input("Misc Overheads", value=300000)
+    all_inputs['rent_per_month'] = st.number_input("Rent", value=300000, step=1000)
+    all_inputs['labor_per_month'] = st.number_input("Labor Wages and Salaries", value=400000, step=1000)
+    all_inputs['electricity_per_month'] = st.number_input("Electricity (Fixed)", value=150000, step=1000)
+    all_inputs['security_ssc_insurance_per_month'] = st.number_input("Security, SSC & Insurance", value=300000, step=1000)
+    all_inputs['misc_per_month'] = st.number_input("Misc Overheads", value=300000, step=1000)
+
 with st.sidebar.expander("Funding & Tax", True):
-    all_inputs['equity_contrib'] = st.slider("Equity Contribution (%)", 0.0, 100.0, key='equity_contrib')
-    all_inputs['interest_rate'] = st.number_input("Interest Rate (%)", key='interest_rate')
-    all_inputs['tax_rate_percent'] = st.slider("Corporate Tax Rate (%)", 0.0, 50.0, 25.0)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        equity_contrib_slider = st.slider("Equity Contribution (%)", 0.0, 100.0, st.session_state.get('equity_contrib', 30.0), step=0.1, key="equity_contrib_slider")
+    with col2:
+        equity_contrib = st.number_input("Exact Equity (%)", 0.0, 100.0, value=equity_contrib_slider, step=0.1, key="equity_contrib_input")
+    all_inputs['equity_contrib'] = equity_contrib
+    all_inputs['interest_rate'] = st.number_input("Interest Rate (%)", value=st.session_state.get('interest_rate', 9.0), step=0.01)
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        tax_rate_slider = st.slider("Corporate Tax Rate (%)", 0.0, 50.0, 25.0, step=0.1, key="tax_rate_slider")
+    with col2:
+        tax_rate = st.number_input("Exact Tax (%)", 0.0, 50.0, value=tax_rate_slider, step=0.1, key="tax_rate_input")
+    all_inputs['tax_rate_percent'] = tax_rate
+
 with st.sidebar.expander("Working Capital Days", True):
-    all_inputs['rm_inventory_days'] = st.number_input("RM Inventory Days", value=72)
-    all_inputs['fg_inventory_days'] = st.number_input("FG Inventory Days", value=20)
-    all_inputs['debtor_days'] = st.number_input("Debtor Days", value=45)
-    all_inputs['creditor_days'] = st.number_input("Creditor Days", value=5)
+    all_inputs['rm_inventory_days'] = st.number_input("RM Inventory Days", value=72, step=1)
+    all_inputs['fg_inventory_days'] = st.number_input("FG Inventory Days", value=20, step=1)
+    all_inputs['debtor_days'] = st.number_input("Debtor Days", value=45, step=1)
+    all_inputs['creditor_days'] = st.number_input("Creditor Days", value=5, step=1)
 
 results = run_financial_model(all_inputs)
 
@@ -246,13 +275,12 @@ if 'error' in results:
     st.error(results['error'])
 else:
     st.header("📈 Key Performance Indicators (Annual)")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     custom_metric(col1, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.2f}% Margin", "Net Profit")
     custom_metric(col2, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.2f}% Margin", "EBITDA")
-    custom_metric(col3, "ROI", f"{results['roi']:.2f}%", "", "ROI")
-    col4, col5 = st.columns(2)
-    custom_metric(col4, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
-    custom_metric(col5, "ROE", f"{results['roe']:.2f}%", "", "ROE")
+    col3, col4 = st.columns(2)
+    custom_metric(col3, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
+    custom_metric(col4, "ROE", f"{results['roe']:.2f}%", "", "ROE")
 
     st.divider()
     st.header("📊 Daily, Monthly, and Annual Summary")
