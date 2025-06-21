@@ -24,22 +24,16 @@ st.markdown("""
 /* Main content responsive adjustment */
 .main .block-container {
     padding: 1rem;
-    transition: margin-left 0.3s ease, width 0.3s ease;
-    max-width: none !important;
-    width: 100% !important;
+    transition: margin-left 0.3s ease;
 }
 
 /* Dynamic content adjustment based on sidebar state */
 [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
     margin-left: 300px;
-    width: calc(100vw - 300px) !important;
-    max-width: calc(100vw - 300px) !important;
 }
 
 [data-testid="stSidebar"][aria-expanded="false"] ~ .main .block-container {
     margin-left: 50px;
-    width: calc(100vw - 50px) !important;
-    max-width: calc(100vw - 50px) !important;
 }
 
 /* Ensure all content is responsive */
@@ -133,8 +127,6 @@ st.markdown("""
     
     [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
         margin-left: 250px;
-        width: calc(100vw - 250px) !important;
-        max-width: calc(100vw - 250px) !important;
     }
     
     .metric-container {
@@ -146,8 +138,6 @@ st.markdown("""
 @media (max-width: 480px) {
     [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
         margin-left: 0;
-        width: 100% !important;
-        max-width: 100% !important;
     }
 }
 </style>
