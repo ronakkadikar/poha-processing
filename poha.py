@@ -33,42 +33,56 @@ def format_crore(amount):
 
 st.set_page_config(page_title="Poha Manufacturing Financial Dashboard", page_icon="🌾", layout="wide")
 
-# Custom CSS for sidebar width control and main content compression
+# CORRECTED CSS for proper sidebar behavior
 st.markdown("""
 <style>
-    /* Sidebar width control */
+    /* Ensure sidebar is always visible and accessible */
+    [data-testid="stSidebar"] {
+        position: relative !important;
+        left: 0 !important;
+        margin-left: 0 !important;
+    }
+    
+    /* Control sidebar width when expanded */
     [data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 400px;
-        max-width: 400px;
-        width: 400px !important;
+        width: 350px !important;
+        min-width: 350px !important;
     }
     
+    /* Sidebar when collapsed */
     [data-testid="stSidebar"][aria-expanded="false"] {
-        min-width: 0px;
-        max-width: 0px;
-        width: 0px !important;
-        margin-left: -400px;
+        width: 50px !important;
+        min-width: 50px !important;
     }
     
-    /* Main content area adjustment */
+    /* Main content area responsive adjustment */
     .main .block-container {
         padding-left: 1rem;
         padding-right: 1rem;
         max-width: none;
-        width: 100%;
     }
     
-    /* Ensure main content compresses instead of shifting */
-    [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
-        margin-left: 0px;
-        width: calc(100vw - 420px);
-        max-width: calc(100vw - 420px);
+    /* Adjust main content width based on sidebar state */
+    .main {
+        transition: margin-left 0.3s ease;
     }
     
-    [data-testid="stSidebar"][aria-expanded="false"] ~ .main .block-container {
+    /* When sidebar is expanded, reduce main content width */
+    [data-testid="stSidebar"][aria-expanded="true"] ~ .main {
         margin-left: 0px;
-        width: 100vw;
-        max-width: 100vw;
+    }
+    
+    /* Ensure content doesn't overflow */
+    .main .block-container {
+        overflow-x: auto;
+    }
+    
+    /* Responsive columns for smaller screens */
+    @media (max-width: 1200px) {
+        [data-testid="stSidebar"][aria-expanded="true"] {
+            width: 300px !important;
+            min-width: 300px !important;
+        }
     }
     
     /* Metric container styles */
@@ -77,6 +91,10 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 0.5rem 0;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
     .metric-title {
         font-size: 0.875rem;
@@ -84,14 +102,16 @@ st.markdown("""
         margin-bottom: 0.25rem;
     }
     .metric-value {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
         font-weight: bold;
         color: #262730;
         margin-bottom: 0.25rem;
+        word-wrap: break-word;
     }
     .metric-delta {
-        font-size: 0.875rem;
+        font-size: 0.75rem;
         margin-top: 0.25rem;
+        word-wrap: break-word;
     }
     .tooltip {
         position: relative;
@@ -100,21 +120,21 @@ st.markdown("""
     }
     .tooltip .tooltiptext {
         visibility: hidden;
-        width: 300px;
+        width: 250px;
         background-color: #555;
         color: white;
         text-align: left;
         border-radius: 6px;
-        padding: 10px;
+        padding: 8px;
         position: absolute;
         z-index: 1;
         bottom: 125%;
         left: 50%;
-        margin-left: -150px;
+        margin-left: -125px;
         opacity: 0;
         transition: opacity 0.3s;
-        font-size: 12px;
-        line-height: 1.4;
+        font-size: 11px;
+        line-height: 1.3;
     }
     .tooltip:hover .tooltiptext {
         visibility: visible;
@@ -129,12 +149,14 @@ st.markdown("""
         color: #856404;
     }
     
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
-            width: calc(100vw - 50px);
-            max-width: calc(100vw - 50px);
-        }
+    /* Responsive table and chart adjustments */
+    .stDataFrame {
+        font-size: 0.85rem;
+    }
+    
+    /* Ensure plotly charts are responsive */
+    .js-plotly-plot {
+        width: 100% !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -153,7 +175,6 @@ with st.sidebar.expander("Production & Yield", expanded=True):
     st.markdown("#### Yield & Byproduct")
     paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=65.0, step=0.1)
     
-    # More sensitive slider with smaller steps
     st.markdown("#### Byproduct Sales (% of Paddy Input)")
     byproduct_sale_percent = st.slider(
         "Byproduct Sold (% of Paddy Input)", 
@@ -229,7 +250,7 @@ def run_financial_model(inputs):
     monthly_poha_production = daily_poha_production * inputs['days_per_month']
     annual_poha_production = monthly_poha_production * 12
     
-    # Byproduct calculations (CORRECTED)
+    # Byproduct calculations
     daily_byproduct_sold_target = daily_paddy_consumption * (inputs['byproduct_sale_percent'] / 100)
     daily_byproduct_generated = daily_paddy_consumption - daily_poha_production
     daily_byproduct_sold = min(daily_byproduct_sold_target, daily_byproduct_generated)
@@ -249,7 +270,7 @@ def run_financial_model(inputs):
     # Gross profit
     annual_gross_profit = total_annual_revenue - annual_cogs
     
-    # Variable operating costs (CORRECTED - based on paddy input)
+    # Variable operating costs
     total_variable_cost_per_kg_paddy = inputs['packaging_cost'] + inputs['fuel_cost'] + inputs['other_var_cost']
     annual_variable_operating_costs_total = annual_paddy_consumption * total_variable_cost_per_kg_paddy
     
@@ -268,7 +289,7 @@ def run_financial_model(inputs):
     # EBIT
     operating_income_ebit = annual_gross_profit - total_operating_expenses_for_pnl - total_annual_depreciation
     
-    # Working capital calculations (CORRECTED)
+    # Working capital calculations
     daily_cogs_basis = annual_cogs / 365
     daily_cost_of_production = (annual_cogs + annual_variable_operating_costs_total) / annual_poha_production
     daily_revenue_basis = total_annual_revenue / 365
@@ -296,7 +317,7 @@ def run_financial_model(inputs):
     taxes = max(0, earnings_before_tax_ebt) * (inputs['tax_rate_percent'] / 100)
     net_profit = earnings_before_tax_ebt - taxes
     
-    # CORRECTED Financial ratios
+    # Financial ratios
     total_assets_for_roce = total_capex + total_current_assets
     capital_employed = total_assets_for_roce - total_current_liabilities
     
@@ -308,7 +329,7 @@ def run_financial_model(inputs):
     roe = (net_profit / initial_equity_contribution) * 100 if initial_equity_contribution > 0 else float('inf')
     gross_profit_margin = (annual_gross_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     
-    # CORRECTED Contribution Margin calculation
+    # Contribution Margin calculation
     contribution_margin = annual_gross_profit - annual_variable_operating_costs_total
     contribution_margin_percent = (contribution_margin / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     
@@ -374,14 +395,14 @@ else:
     col1, col2, col3, col4 = st.columns(4)
     custom_metric(col1, "Revenue", format_indian_currency(results['total_annual_revenue']), "", "Revenue")
     custom_metric(col2, "COGS", format_indian_currency(results['annual_cogs']), "", "COGS")
-    custom_metric(col3, "Gross Margin", f"{results['gross_profit_margin']:.2f}%", format_indian_currency(results['annual_gross_profit']), "Gross Margin")
-    custom_metric(col4, "Contribution Margin", f"{results['contribution_margin_percent']:.2f}%", format_indian_currency(results['contribution_margin']), "Contribution Margin")
+    custom_metric(col3, "Gross Margin", f"{results['gross_profit_margin']:.1f}%", format_indian_currency(results['annual_gross_profit']), "Gross Margin")
+    custom_metric(col4, "Contribution Margin", f"{results['contribution_margin_percent']:.1f}%", format_indian_currency(results['contribution_margin']), "Contribution Margin")
     
     col5, col6, col7, col8 = st.columns(4)
-    custom_metric(col5, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.2f}% Margin", "Net Profit")
-    custom_metric(col6, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.2f}% Margin", "EBITDA")
-    custom_metric(col7, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
-    custom_metric(col8, "ROE", f"{results['roe']:.2f}%", "", "ROE")
+    custom_metric(col5, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.1f}% Margin", "Net Profit")
+    custom_metric(col6, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.1f}% Margin", "EBITDA")
+    custom_metric(col7, "ROCE", f"{results['roce']:.1f}%", "", "ROCE")
+    custom_metric(col8, "ROE", f"{results['roe']:.1f}%", "", "ROE")
     
     st.divider()
     
@@ -415,7 +436,7 @@ else:
     rm_cost_per_kg_paddy = results['paddy_rate']
     total_variable_cost_per_kg_paddy = rm_cost_per_kg_paddy + results['total_variable_cost_per_kg_paddy']
     
-    # Revenue per kg of paddy input (corrected calculation)
+    # Revenue per kg of paddy input
     poha_revenue_per_kg_paddy = results['poha_price'] * (results['paddy_yield'] / 100)
     byproduct_revenue_per_kg_paddy = results['byproduct_rate_kg'] * min(
         results['byproduct_sale_percent'] / 100,
@@ -609,13 +630,10 @@ else:
         st.markdown(f"**Daily Poha Production:** `{results['daily_paddy_consumption']:,.0f} kg * {results['paddy_yield']:.1f}% = {results['daily_poha_production']:,.0f} kg`")
         st.markdown(f"**Daily Byproduct Generated:** `{results['daily_paddy_consumption']:,.0f} kg - {results['daily_poha_production']:,.0f} kg = {results['daily_byproduct_generated']:,.0f} kg`")
         
-        st.markdown("##### 2. Byproduct Sales (Corrected Calculation)")
+        st.markdown("##### 2. Byproduct Sales")
         st.markdown(f"**Target Byproduct Sales:** `{results['daily_paddy_consumption']:,.0f} kg * {results['byproduct_sale_percent']:.1f}% = {results['daily_byproduct_sold_target']:,.0f} kg`")
         st.markdown(f"**Maximum Available:** `{results['daily_byproduct_generated']:,.0f} kg`")
-        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_sold_target']:,.0f}, {results['daily_byproduct_generated']::.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
-        
-        if results.get('byproduct_limit_hit', False):
-            st.markdown("⚠️ **Note:** Byproduct sales are constrained by availability (accounts for dirt/grit losses)")
+        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_sold_target']:,.0f}, {results['daily_byproduct_generated']:,.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
     
     with st.expander("Revenue Breakdown"):
         st.markdown("##### Daily Revenue Components")
@@ -626,31 +644,12 @@ else:
         st.markdown(f"**Byproduct Revenue:** `{results['daily_byproduct_sold']:,.0f} kg * ₹{results['byproduct_rate_kg']:.2f} = {format_indian_currency(daily_byproduct_revenue)}`")
         st.markdown(f"**Total Daily Revenue:** `{format_indian_currency(daily_poha_revenue)} + {format_indian_currency(daily_byproduct_revenue)} = {format_indian_currency(results['total_daily_revenue'])}`")
     
-    with st.expander("Variable Cost Calculation (Per kg Paddy)"):
-        st.markdown("##### Variable Costs are based on Paddy Input")
+    with st.expander("Variable Cost Calculation"):
+        st.markdown("##### Variable Costs (Per kg Paddy)")
         st.markdown(f"**Packaging Cost:** `₹{results['packaging_cost']:.2f} per kg paddy`")
         st.markdown(f"**Fuel/Power Cost:** `₹{results['fuel_cost']:.2f} per kg paddy`")
         st.markdown(f"**Other Variable Cost:** `₹{results['other_var_cost']:.2f} per kg paddy`")
         st.markdown(f"**Total Variable Cost:** `₹{results['total_variable_cost_per_kg_paddy']:.2f} per kg paddy`")
         st.markdown(f"**Annual Variable Costs:** `{results['annual_paddy_consumption']:,.0f} kg * ₹{results['total_variable_cost_per_kg_paddy']:.2f} = {format_indian_currency(results['annual_variable_operating_costs_total'])}`")
-    
-    with st.expander("Margin Analysis"):
-        st.markdown("##### Gross Margin vs Contribution Margin")
-        st.markdown(f"**Gross Profit:** `Revenue - COGS = {format_indian_currency(results['total_annual_revenue'])} - {format_indian_currency(results['annual_cogs'])} = {format_indian_currency(results['annual_gross_profit'])}`")
-        st.markdown(f"**Gross Margin:** `{results['gross_profit_margin']:.2f}%`")
-        st.markdown(f"**Contribution Margin:** `Gross Profit - Variable OpEx = {format_indian_currency(results['annual_gross_profit'])} - {format_indian_currency(results['annual_variable_operating_costs_total'])} = {format_indian_currency(results['contribution_margin'])}`")
-        st.markdown(f"**Contribution Margin %:** `{results['contribution_margin_percent']:.2f}%`")
-    
-    with st.expander("Breakeven Analysis Details"):
-        st.markdown("##### Revenue per kg of Paddy Input")
-        st.markdown(f"**Poha Revenue per kg Paddy:** `₹{results['poha_price']:.2f} * {results['paddy_yield']:.1f}% = ₹{poha_revenue_per_kg_paddy:.2f}`")
-        st.markdown(f"**Byproduct Revenue per kg Paddy:** `₹{results['byproduct_rate_kg']:.2f} * {min(results['byproduct_sale_percent'], 100 - results['paddy_yield']):.1f}% = ₹{byproduct_revenue_per_kg_paddy:.2f}`")
-        st.markdown(f"**Total Revenue per kg Paddy:** `₹{poha_revenue_per_kg_paddy:.2f} + ₹{byproduct_revenue_per_kg_paddy:.2f} = ₹{revenue_per_kg_paddy:.2f}`")
-        
-        st.markdown("##### Cost Structure")
-        st.markdown(f"**Variable Cost per kg Paddy:** `₹{results['paddy_rate']:.2f} + ₹{results['total_variable_cost_per_kg_paddy']:.2f} = ₹{total_variable_cost_per_kg_paddy:.2f}`")
-        st.markdown(f"**Contribution Margin per kg:** `₹{revenue_per_kg_paddy:.2f} - ₹{total_variable_cost_per_kg_paddy:.2f} = ₹{contribution_margin_per_kg_paddy:.2f}`")
-        st.markdown(f"**Fixed Costs (Annual):** `{format_indian_currency(total_fixed_costs_for_breakeven)}`")
-        st.markdown(f"**Breakeven Volume:** `{format_indian_currency(total_fixed_costs_for_breakeven)} ÷ ₹{contribution_margin_per_kg_paddy:.2f} = {breakeven_volume_kg_paddy:,.0f} kg paddy`")
 
-st.success("Dashboard loaded successfully with responsive sidebar and updated parameters!")
+st.success("Dashboard loaded successfully with fixed sidebar and responsive layout!")
