@@ -108,7 +108,7 @@ with st.sidebar.expander("Production & Yield", expanded=True):
     st.markdown("#### Yield & Byproduct")
     paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=62.0, step=0.1)
     
-    # Updated byproduct calculation with slider
+    # More sensitive slider with smaller steps
     st.markdown("#### Byproduct Sales (% of Paddy Input)")
     byproduct_sale_percent = st.slider(
         "Byproduct Sold (% of Paddy Input)", 
@@ -159,165 +159,103 @@ with st.sidebar.expander("Working Capital Days", expanded=True):
     creditor_days = st.number_input("Creditor Days (Payables)", value=5, step=1)
 
 # Collect all inputs
-all_inputs = dict(
-    hours_per_day=hours_per_day,
-    days_per_month=days_per_month,
-    paddy_rate_kg_hr=paddy_rate_kg_hr,
-    paddy_yield=paddy_yield,
-    byproduct_sale_percent=byproduct_sale_percent,
-    paddy_rate=paddy_rate,
-    poha_price=poha_price,
-    byproduct_rate_kg=byproduct_rate_kg,
-    land_cost=land_cost,
-    civil_work_cost=civil_work_cost,
-    machinery_cost=machinery_cost,
-    machinery_useful_life_years=machinery_useful_life_years,
-    packaging_cost=packaging_cost,
-    fuel_cost=fuel_cost,
-    other_var_cost=other_var_cost,
-    rent_per_month=rent_per_month,
-    labor_per_month=labor_per_month,
-    electricity_per_month=electricity_per_month,
-    security_ssc_insurance_per_month=security_ssc_insurance_per_month,
-    misc_per_month=misc_per_month,
-    equity_contrib=equity_contrib,
-    interest_rate=interest_rate,
-    tax_rate_percent=tax_rate_percent,
-    rm_inventory_days=rm_inventory_days,
-    fg_inventory_days=fg_inventory_days,
-    debtor_days=debtor_days,
-    creditor_days=creditor_days
-)
+all_inputs = {k: v for k, v in locals().items() if k in [
+    'hours_per_day', 'days_per_month', 'paddy_rate_kg_hr', 'paddy_yield', 'byproduct_sale_percent',
+    'paddy_rate', 'poha_price', 'byproduct_rate_kg', 'land_cost', 'civil_work_cost', 'machinery_cost',
+    'machinery_useful_life_years', 'packaging_cost', 'fuel_cost', 'other_var_cost', 'rent_per_month',
+    'labor_per_month', 'electricity_per_month', 'security_ssc_insurance_per_month', 'misc_per_month',
+    'equity_contrib', 'interest_rate', 'tax_rate_percent', 'rm_inventory_days', 'fg_inventory_days',
+    'debtor_days', 'creditor_days'
+]}
 
 def run_financial_model(inputs):
-    # Extract inputs
-    hours_per_day = inputs['hours_per_day']
-    days_per_month = inputs['days_per_month']
-    paddy_rate_kg_hr = inputs['paddy_rate_kg_hr']
-    paddy_yield = inputs['paddy_yield']
-    byproduct_sale_percent = inputs['byproduct_sale_percent']
-    paddy_rate = inputs['paddy_rate']
-    poha_price = inputs['poha_price']
-    byproduct_rate_kg = inputs['byproduct_rate_kg']
-    land_cost = inputs['land_cost']
-    civil_work_cost = inputs['civil_work_cost']
-    machinery_cost = inputs['machinery_cost']
-    machinery_useful_life_years = inputs['machinery_useful_life_years']
-    packaging_cost = inputs['packaging_cost']
-    fuel_cost = inputs['fuel_cost']
-    other_var_cost = inputs['other_var_cost']
-    rent_per_month = inputs['rent_per_month']
-    labor_per_month = inputs['labor_per_month']
-    electricity_per_month = inputs['electricity_per_month']
-    security_ssc_insurance_per_month = inputs['security_ssc_insurance_per_month']
-    misc_per_month = inputs['misc_per_month']
-    equity_contrib = inputs['equity_contrib']
-    interest_rate = inputs['interest_rate']
-    tax_rate_percent = inputs['tax_rate_percent']
-    rm_inventory_days = inputs['rm_inventory_days']
-    fg_inventory_days = inputs['fg_inventory_days']
-    debtor_days = inputs['debtor_days']
-    creditor_days = inputs['creditor_days']
-    
-    # Calculate total capex
-    total_capex = land_cost + civil_work_cost + machinery_cost
-    
     # Validation
-    if any(v is None or (isinstance(v, (int, float)) and v <= 0) for v in [paddy_yield, poha_price, total_capex]):
+    total_capex = inputs['land_cost'] + inputs['civil_work_cost'] + inputs['machinery_cost']
+    if any(v <= 0 for v in [inputs['paddy_yield'], inputs['poha_price'], total_capex]):
         return {'error': 'Paddy Yield, Poha Price, and Capex must be greater than 0.'}
     
-    # Production calculations based on paddy input
-    daily_paddy_consumption = paddy_rate_kg_hr * hours_per_day
-    monthly_paddy_consumption = daily_paddy_consumption * days_per_month
+    # Production calculations
+    daily_paddy_consumption = inputs['paddy_rate_kg_hr'] * inputs['hours_per_day']
+    monthly_paddy_consumption = daily_paddy_consumption * inputs['days_per_month']
     annual_paddy_consumption = monthly_paddy_consumption * 12
     
-    # Calculate poha production from paddy input
-    daily_poha_production = daily_paddy_consumption * (paddy_yield / 100)
-    monthly_poha_production = daily_poha_production * days_per_month
+    # Poha production
+    daily_poha_production = daily_paddy_consumption * (inputs['paddy_yield'] / 100)
+    monthly_poha_production = daily_poha_production * inputs['days_per_month']
     annual_poha_production = monthly_poha_production * 12
     
-    # CORRECTED Byproduct calculations - Option B
-    # Byproduct sold is a percentage of original paddy input
-    daily_byproduct_sold_target = daily_paddy_consumption * (byproduct_sale_percent / 100)
-    monthly_byproduct_sold_target = monthly_paddy_consumption * (byproduct_sale_percent / 100)
-    annual_byproduct_sold_target = annual_paddy_consumption * (byproduct_sale_percent / 100)
-    
-    # Calculate maximum byproduct available (paddy - poha)
+    # Byproduct calculations (CORRECTED)
+    daily_byproduct_sold_target = daily_paddy_consumption * (inputs['byproduct_sale_percent'] / 100)
     daily_byproduct_generated = daily_paddy_consumption - daily_poha_production
-    monthly_byproduct_generated = monthly_paddy_consumption - monthly_poha_production
-    annual_byproduct_generated = annual_paddy_consumption - annual_poha_production
-    
-    # Apply validation check - can't sell more than generated
     daily_byproduct_sold = min(daily_byproduct_sold_target, daily_byproduct_generated)
-    monthly_byproduct_sold = min(monthly_byproduct_sold_target, monthly_byproduct_generated)
-    annual_byproduct_sold = min(annual_byproduct_sold_target, annual_byproduct_generated)
     
-    # Check if we're hitting the limit (for warning display)
+    monthly_byproduct_sold = daily_byproduct_sold * inputs['days_per_month']
+    annual_byproduct_sold = monthly_byproduct_sold * 12
     byproduct_limit_hit = daily_byproduct_sold_target > daily_byproduct_generated
     
     # Revenue calculations
-    total_daily_revenue = (daily_poha_production * poha_price) + (daily_byproduct_sold * byproduct_rate_kg)
-    total_monthly_revenue = (monthly_poha_production * poha_price) + (monthly_byproduct_sold * byproduct_rate_kg)
-    total_annual_revenue = (annual_poha_production * poha_price) + (annual_byproduct_sold * byproduct_rate_kg)
+    total_daily_revenue = (daily_poha_production * inputs['poha_price']) + (daily_byproduct_sold * inputs['byproduct_rate_kg'])
+    total_monthly_revenue = total_daily_revenue * inputs['days_per_month']
+    total_annual_revenue = total_monthly_revenue * 12
     
-    # COGS calculations (paddy cost)
-    daily_cogs = daily_paddy_consumption * paddy_rate
-    monthly_cogs = monthly_paddy_consumption * paddy_rate
-    annual_cogs = annual_paddy_consumption * paddy_rate
+    # COGS (paddy cost only)
+    annual_cogs = annual_paddy_consumption * inputs['paddy_rate']
     
     # Gross profit
-    daily_gross_profit = total_daily_revenue - daily_cogs
-    monthly_gross_profit = total_monthly_revenue - monthly_cogs
     annual_gross_profit = total_annual_revenue - annual_cogs
     
-    # Variable operating costs (based on paddy input)
-    total_variable_cost_per_kg_paddy = packaging_cost + fuel_cost + other_var_cost
+    # Variable operating costs (CORRECTED - based on paddy input)
+    total_variable_cost_per_kg_paddy = inputs['packaging_cost'] + inputs['fuel_cost'] + inputs['other_var_cost']
     annual_variable_operating_costs_total = annual_paddy_consumption * total_variable_cost_per_kg_paddy
     
     # Fixed operating costs
-    total_monthly_fixed_opex = rent_per_month + labor_per_month + electricity_per_month + security_ssc_insurance_per_month + misc_per_month
+    total_monthly_fixed_opex = sum([inputs['rent_per_month'], inputs['labor_per_month'], 
+                                   inputs['electricity_per_month'], inputs['security_ssc_insurance_per_month'], 
+                                   inputs['misc_per_month']])
     annual_fixed_operating_costs = total_monthly_fixed_opex * 12
     
     # Total operating expenses
     total_operating_expenses_for_pnl = annual_fixed_operating_costs + annual_variable_operating_costs_total
     
     # Depreciation
-    total_annual_depreciation = (machinery_cost + civil_work_cost) / machinery_useful_life_years if machinery_useful_life_years > 0 else 0
+    total_annual_depreciation = (inputs['machinery_cost'] + inputs['civil_work_cost']) / inputs['machinery_useful_life_years']
     
     # EBIT
     operating_income_ebit = annual_gross_profit - total_operating_expenses_for_pnl - total_annual_depreciation
     
-    # Working capital calculations
+    # Working capital calculations (CORRECTED)
     daily_cogs_basis = annual_cogs / 365
-    daily_cost_of_production = (annual_cogs + annual_variable_operating_costs_total) / annual_poha_production if annual_poha_production > 0 else 0
+    daily_cost_of_production = (annual_cogs + annual_variable_operating_costs_total) / annual_poha_production
     daily_revenue_basis = total_annual_revenue / 365
     
-    rm_inventory_value = daily_cogs_basis * rm_inventory_days
-    fg_inventory_value = (daily_poha_production * daily_cost_of_production) * fg_inventory_days if daily_poha_production > 0 else 0
-    accounts_receivable = daily_revenue_basis * debtor_days
-    accounts_payable = daily_cogs_basis * creditor_days
+    rm_inventory_value = daily_cogs_basis * inputs['rm_inventory_days']
+    fg_inventory_value = (daily_poha_production * daily_cost_of_production) * inputs['fg_inventory_days']
+    accounts_receivable = daily_revenue_basis * inputs['debtor_days']
+    accounts_payable = daily_cogs_basis * inputs['creditor_days']
     
     total_current_assets = rm_inventory_value + fg_inventory_value + accounts_receivable
     total_current_liabilities = accounts_payable
     net_working_capital = total_current_assets - total_current_liabilities
     
     # Financing calculations
-    initial_equity_contribution = total_capex * (equity_contrib / 100)
+    initial_equity_contribution = total_capex * (inputs['equity_contrib'] / 100)
     total_debt_component = total_capex - initial_equity_contribution
     
     # Interest calculations
-    annual_interest_expense_fixed_assets = total_debt_component * (interest_rate / 100)
-    interest_on_working_capital = max(0, net_working_capital) * (interest_rate / 100)
+    annual_interest_expense_fixed_assets = total_debt_component * (inputs['interest_rate'] / 100)
+    interest_on_working_capital = max(0, net_working_capital) * (inputs['interest_rate'] / 100)
     annual_interest_expense = annual_interest_expense_fixed_assets + interest_on_working_capital
     
     # Tax calculations
     earnings_before_tax_ebt = operating_income_ebit - annual_interest_expense
-    taxes = max(0, earnings_before_tax_ebt) * (tax_rate_percent / 100)
+    taxes = max(0, earnings_before_tax_ebt) * (inputs['tax_rate_percent'] / 100)
     net_profit = earnings_before_tax_ebt - taxes
     
-    # Financial ratios
+    # CORRECTED Financial ratios
     total_assets_for_roce = total_capex + total_current_assets
     capital_employed = total_assets_for_roce - total_current_liabilities
+    
+    # Key metrics
     roce = (operating_income_ebit / capital_employed) * 100 if capital_employed != 0 else float('inf')
     net_profit_margin = (net_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     ebitda = operating_income_ebit + total_annual_depreciation
@@ -325,21 +263,27 @@ def run_financial_model(inputs):
     roe = (net_profit / initial_equity_contribution) * 100 if initial_equity_contribution > 0 else float('inf')
     gross_profit_margin = (annual_gross_profit / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
     
-    return {**inputs, **locals()}
+    # CORRECTED Contribution Margin calculation
+    contribution_margin = annual_gross_profit - annual_variable_operating_costs_total
+    contribution_margin_percent = (contribution_margin / total_annual_revenue) * 100 if total_annual_revenue > 0 else 0
+    
+    return {**inputs, **{k: v for k, v in locals().items() if not k.startswith('inputs')}}
 
 # Key ratios information for tooltips
 key_ratios_info = {
+    "Revenue": {"formula": "Revenue = Poha Sales + Byproduct Sales", "explanation": "Total income from all product sales."},
+    "COGS": {"formula": "COGS = Paddy Consumption × Paddy Rate", "explanation": "Direct cost of raw materials consumed."},
+    "Gross Margin": {"formula": "GM = (Revenue - COGS) / Revenue × 100", "explanation": "Profitability after direct material costs."},
+    "Contribution Margin": {"formula": "CM = (Revenue - COGS - Variable Costs) / Revenue × 100", "explanation": "Profitability after all variable costs."},
     "Net Profit": {"formula": "Net Profit = EBT - Taxes", "explanation": "The final 'bottom line' profit after all costs."},
     "EBITDA": {"formula": "EBITDA = EBIT + Depreciation", "explanation": "Operational profitability before non-cash expenses."},
-    "ROCE": {"formula": "ROCE = (EBIT / Capital Employed) * 100", "explanation": "Effectiveness of capital in generating profits."},
-    "ROE": {"formula": "ROE = (Net Profit / Equity) * 100", "explanation": "Profitability relative to shareholder equity."}
+    "ROCE": {"formula": "ROCE = (EBIT / Capital Employed) × 100", "explanation": "Effectiveness of capital in generating profits."},
+    "ROE": {"formula": "ROE = (Net Profit / Equity) × 100", "explanation": "Profitability relative to shareholder equity."}
 }
 
 def custom_metric(col, label, value, sub_value, info_key):
     formula, explanation = key_ratios_info[info_key].values()
-    tooltip_content = f"""
-    <strong>Formula:</strong> {formula}<br>
-    <strong>Explanation:</strong> {explanation}"""
+    tooltip_content = f"<strong>Formula:</strong> {formula}<br><strong>Explanation:</strong> {explanation}"
     
     try:
         numeric_value = float(sub_value.replace('%', '').replace(' Margin', '').strip())
@@ -379,16 +323,20 @@ else:
         </div>
         """, unsafe_allow_html=True)
     
-    # Display KPIs
+    # Enhanced KPIs with Revenue, COGS, GM, CM
     st.header("📈 Key Performance Indicators (Annual)")
     
-    col1, col2 = st.columns(2)
-    custom_metric(col1, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.2f}% Margin", "Net Profit")
-    custom_metric(col2, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.2f}% Margin", "EBITDA")
+    col1, col2, col3, col4 = st.columns(4)
+    custom_metric(col1, "Revenue", format_indian_currency(results['total_annual_revenue']), "", "Revenue")
+    custom_metric(col2, "COGS", format_indian_currency(results['annual_cogs']), "", "COGS")
+    custom_metric(col3, "Gross Margin", f"{results['gross_profit_margin']:.2f}%", format_indian_currency(results['annual_gross_profit']), "Gross Margin")
+    custom_metric(col4, "Contribution Margin", f"{results['contribution_margin_percent']:.2f}%", format_indian_currency(results['contribution_margin']), "Contribution Margin")
     
-    col3, col4 = st.columns(2)
-    custom_metric(col3, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
-    custom_metric(col4, "ROE", f"{results['roe']:.2f}%", "", "ROE")
+    col5, col6, col7, col8 = st.columns(4)
+    custom_metric(col5, "Net Profit", format_indian_currency(results['net_profit']), f"{results['net_profit_margin']:.2f}% Margin", "Net Profit")
+    custom_metric(col6, "EBITDA", format_indian_currency(results['ebitda']), f"{results['ebitda_margin']:.2f}% Margin", "EBITDA")
+    custom_metric(col7, "ROCE", f"{results['roce']:.2f}%", "", "ROCE")
+    custom_metric(col8, "ROE", f"{results['roe']:.2f}%", "", "ROE")
     
     st.divider()
     
@@ -396,42 +344,19 @@ else:
     st.header("📊 Daily, Monthly, and Annual Summary")
     
     summary_data = {
-        "Metric": [
-            "Paddy Consumption (kg)", 
-            "Poha Production (kg)", 
-            "Byproduct Generated (kg)",
-            "Byproduct Sold (kg)",
-            "Total Revenue", 
-            "COGS", 
-            "Gross Profit"
-        ],
-        "Daily": [
-            f"{results['daily_paddy_consumption']:,.0f}",
-            f"{results['daily_poha_production']:,.0f}",
-            f"{results['daily_byproduct_generated']:,.0f}",
-            f"{results['daily_byproduct_sold']:,.0f}",
-            format_indian_currency(results['total_daily_revenue']),
-            format_indian_currency(results['daily_cogs']),
-            format_indian_currency(results['daily_gross_profit'])
-        ],
-        "Monthly": [
-            f"{results['monthly_paddy_consumption']:,.0f}",
-            f"{results['monthly_poha_production']:,.0f}",
-            f"{results['monthly_byproduct_generated']:,.0f}",
-            f"{results['monthly_byproduct_sold']:,.0f}",
-            format_indian_currency(results['total_monthly_revenue']),
-            format_indian_currency(results['monthly_cogs']),
-            format_indian_currency(results['monthly_gross_profit'])
-        ],
-        "Annual": [
-            f"{results['annual_paddy_consumption']:,.0f}",
-            f"{results['annual_poha_production']:,.0f}",
-            f"{results['annual_byproduct_generated']:,.0f}",
-            f"{results['annual_byproduct_sold']:,.0f}",
-            format_indian_currency(results['total_annual_revenue']),
-            format_indian_currency(results['annual_cogs']),
-            format_indian_currency(results['annual_gross_profit'])
-        ]
+        "Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"],
+        "Daily": [f"{results['daily_paddy_consumption']:,.0f}", f"{results['daily_poha_production']:,.0f}", 
+                 f"{results['daily_byproduct_generated']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}",
+                 format_indian_currency(results['total_daily_revenue']), format_indian_currency(results['annual_cogs']/365),
+                 format_indian_currency(results['annual_gross_profit']/365)],
+        "Monthly": [f"{results['monthly_paddy_consumption']:,.0f}", f"{results['monthly_poha_production']:,.0f}",
+                   f"{results['daily_byproduct_generated'] * results['days_per_month']:,.0f}", f"{results['monthly_byproduct_sold']:,.0f}",
+                   format_indian_currency(results['total_monthly_revenue']), format_indian_currency(results['annual_cogs']/12),
+                   format_indian_currency(results['annual_gross_profit']/12)],
+        "Annual": [f"{results['annual_paddy_consumption']:,.0f}", f"{results['annual_poha_production']:,.0f}",
+                  f"{results['daily_byproduct_generated'] * results['days_per_month'] * 12:,.0f}", f"{results['annual_byproduct_sold']:,.0f}",
+                  format_indian_currency(results['total_annual_revenue']), format_indian_currency(results['annual_cogs']),
+                  format_indian_currency(results['annual_gross_profit'])]
     }
     
     st.dataframe(pd.DataFrame(summary_data), hide_index=True, use_container_width=True)
@@ -664,6 +589,13 @@ else:
         st.markdown(f"**Total Variable Cost:** `₹{results['total_variable_cost_per_kg_paddy']:.2f} per kg paddy`")
         st.markdown(f"**Annual Variable Costs:** `{results['annual_paddy_consumption']:,.0f} kg * ₹{results['total_variable_cost_per_kg_paddy']:.2f} = {format_indian_currency(results['annual_variable_operating_costs_total'])}`")
     
+    with st.expander("Margin Analysis"):
+        st.markdown("##### Gross Margin vs Contribution Margin")
+        st.markdown(f"**Gross Profit:** `Revenue - COGS = {format_indian_currency(results['total_annual_revenue'])} - {format_indian_currency(results['annual_cogs'])} = {format_indian_currency(results['annual_gross_profit'])}`")
+        st.markdown(f"**Gross Margin:** `{results['gross_profit_margin']:.2f}%`")
+        st.markdown(f"**Contribution Margin:** `Gross Profit - Variable OpEx = {format_indian_currency(results['annual_gross_profit'])} - {format_indian_currency(results['annual_variable_operating_costs_total'])} = {format_indian_currency(results['contribution_margin'])}`")
+        st.markdown(f"**Contribution Margin %:** `{results['contribution_margin_percent']:.2f}%`")
+    
     with st.expander("Breakeven Analysis Details"):
         st.markdown("##### Revenue per kg of Paddy Input")
         st.markdown(f"**Poha Revenue per kg Paddy:** `₹{results['poha_price']:.2f} * {results['paddy_yield']:.1f}% = ₹{poha_revenue_per_kg_paddy:.2f}`")
@@ -676,4 +608,4 @@ else:
         st.markdown(f"**Fixed Costs (Annual):** `{format_indian_currency(total_fixed_costs_for_breakeven)}`")
         st.markdown(f"**Breakeven Volume:** `{format_indian_currency(total_fixed_costs_for_breakeven)} ÷ ₹{contribution_margin_per_kg_paddy:.2f} = {breakeven_volume_kg_paddy:,.0f} kg paddy`")
 
-st.success("Dashboard loaded successfully with corrected byproduct calculations!")
+st.success("Dashboard loaded successfully with enhanced KPIs and optimized calculations!")
