@@ -3,146 +3,104 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 
-# Enhanced CSS for responsive layout and sidebar handling
+# --- Definitive CSS Solution ---
+# This CSS block is designed to be robust and override Streamlit's default styles
+# to prevent the main content from being truncated when the sidebar is open.
 st.markdown("""
 <style>
-/* Sidebar responsive handling */
-[data-testid="stSidebar"] {
-    transition: width 0.3s ease;
-}
+    /* Target the main container of the app, not just the block-container */
+    /* This ensures that the margin adjustment affects the entire content area */
+    div.main {
+        transition: margin-left 0.3s ease-in-out;
+    }
 
-[data-testid="stSidebar"][aria-expanded="true"] {
-    width: 300px !important;
-    min-width: 300px !important;
-}
-
-[data-testid="stSidebar"][aria-expanded="false"] {
-    width: 50px !important;
-    min-width: 50px !important;
-}
-
-/* Main content responsive adjustment - Key fix here */
-.main .block-container {
-    padding: 1rem;
-    transition: margin-left 0.3s ease;
-    max-width: none;  /* Remove the 1024px max-width restriction */
-}
-
-/* Dynamic content adjustment based on sidebar state */
-[data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
-    margin-left: 300px;
-}
-
-[data-testid="stSidebar"][aria-expanded="false"] ~ .main .block-container {
-    margin-left: 50px;
-}
-
-/* Ensure all content is responsive */
-.stDataFrame, .js-plotly-plot, .stMetric {
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-/* Custom metric styling (rest of your existing CSS) */
-.metric-container {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    padding: 1rem;
-    border-radius: 10px;
-    margin: 0.5rem 0;
-    min-height: 120px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease;
-}
-
-.metric-container:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-.metric-title {
-    font-size: 0.875rem;
-    color: #2c3e50;
-    font-weight: 600;
-}
-
-.metric-value {
-    font-size: 1.25rem;
-    font-weight: bold;
-    color: #2c3e50;
-}
-
-.metric-delta {
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-/* Tooltip styling */
-.tooltip {
-    position: relative;
-    cursor: pointer;
-}
-
-.tooltip .tooltiptext {
-    visibility: hidden;
-    width: 280px;
-    background-color: #34495e;
-    color: white;
-    text-align: left;
-    border-radius: 8px;
-    padding: 10px;
-    position: absolute;
-    z-index: 1000;
-    bottom: 125%;
-    left: 50%;
-    margin-left: -140px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    font-size: 12px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.tooltip:hover .tooltiptext {
-    visibility: visible;
-    opacity: 1;
-}
-
-/* Warning box */
-.warning-box {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border: 1px solid #f39c12;
-    border-radius: 8px;
-    padding: 1rem;
-    margin: 1rem 0;
-    color: #8b4513;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Mobile responsiveness */
-@media (max-width: 768px) {
+    /* --- Sidebar Open State --- */
+    /* When the sidebar is expanded, this rule applies */
     [data-testid="stSidebar"][aria-expanded="true"] {
-        width: 250px !important;
+        width: 300px !important; /* Set a fixed width for the open sidebar */
+        min-width: 300px !important;
     }
-    
-    [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
-        margin-left: 250px;
-    }
-    
-    .metric-container {
-        min-height: 100px;
-        padding: 0.75rem;
-    }
-}
 
-@media (max-width: 480px) {
-    [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
-        margin-left: 0;
+    /* This pushes the main content to the right to make space for the open sidebar */
+    [data-testid="stSidebar"][aria-expanded="true"] ~ div.main {
+        margin-left: 300px;
     }
-}
+
+    /* --- Sidebar Closed State --- */
+    /* When the sidebar is collapsed, this rule applies */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        width: 50px !important; /* Set a fixed, smaller width for the collapsed icon bar */
+        min-width: 50px !important;
+    }
+    
+    /* This pushes the main content to the right by a smaller amount */
+    [data-testid="stSidebar"][aria-expanded="false"] ~ div.main {
+        margin-left: 50px;
+    }
+
+    /* --- General Content Styling (Your original styles) --- */
+    /* This ensures that all content within the main area is responsive */
+    .block-container, .stDataFrame, .js-plotly-plot, .stMetric {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Custom metric styling */
+    .metric-container {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+    .metric-container:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .metric-title { font-size: 0.875rem; color: #2c3e50; font-weight: 600; }
+    .metric-value { font-size: 1.25rem; font-weight: bold; color: #2c3e50; }
+    .metric-delta { font-size: 0.75rem; font-weight: 500; }
+
+    /* Tooltip styling */
+    .tooltip { position: relative; cursor: pointer; }
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 280px;
+        background-color: #34495e;
+        color: white;
+        text-align: left;
+        border-radius: 8px;
+        padding: 10px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -140px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+
+    /* Warning box */
+    .warning-box {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border: 1px solid #f39c12;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+        color: #8b4513;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
+
 
 # Utility functions
 def format_crore(amount):
