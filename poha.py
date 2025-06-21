@@ -218,12 +218,15 @@ def render_sidebar():
     for section, params in INPUT_CONFIG.items():
         with st.sidebar.expander(section, expanded=True):
             for key, config in params.items():
-                input_type = config.pop("type")
+                # Create a copy of config to avoid modifying the original
+                config_copy = config.copy()
+                input_type = config_copy.pop("type")
                 if input_type == "number":
-                    inputs[key] = st.number_input(**config)
+                    inputs[key] = st.number_input(**config_copy)
                 elif input_type == "slider":
-                    inputs[key] = st.slider(**config)
+                    inputs[key] = st.slider(**config_copy)
     return inputs
+
 
 # Financial model
 def run_financial_model(inputs):
