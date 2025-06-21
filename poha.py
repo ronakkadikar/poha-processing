@@ -83,6 +83,14 @@ st.markdown("""
         visibility: visible;
         opacity: 1;
     }
+    .warning-box {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        color: #856404;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -99,7 +107,17 @@ with st.sidebar.expander("Production & Yield", expanded=True):
     
     st.markdown("#### Yield & Byproduct")
     paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=62.0, step=0.1)
-    byproduct_sale_percent = st.number_input("Byproduct Sold (%)", value=34.0, step=0.1)
+    
+    # Updated byproduct calculation with slider
+    st.markdown("#### Byproduct Sales (% of Paddy Input)")
+    byproduct_sale_percent = st.slider(
+        "Byproduct Sold (% of Paddy Input)", 
+        min_value=0.0, 
+        max_value=40.0, 
+        value=34.0, 
+        step=0.1,
+        help="Percentage of original paddy input sold as byproduct (accounts for dirt/grit losses)"
+    )
 
 with st.sidebar.expander("Financial Assumptions (INR)", expanded=True):
     st.markdown("#### Market Rates")
@@ -218,11 +236,24 @@ def run_financial_model(inputs):
     monthly_poha_production = daily_poha_production * days_per_month
     annual_poha_production = monthly_poha_production * 12
     
-    # Byproduct calculations
+    # CORRECTED Byproduct calculations - Option B
+    # Byproduct sold is a percentage of original paddy input
+    daily_byproduct_sold_target = daily_paddy_consumption * (byproduct_sale_percent / 100)
+    monthly_byproduct_sold_target = monthly_paddy_consumption * (byproduct_sale_percent / 100)
+    annual_byproduct_sold_target = annual_paddy_consumption * (byproduct_sale_percent / 100)
+    
+    # Calculate maximum byproduct available (paddy - poha)
     daily_byproduct_generated = daily_paddy_consumption - daily_poha_production
-    daily_byproduct_sold = daily_byproduct_generated * (byproduct_sale_percent / 100)
-    monthly_byproduct_sold = daily_byproduct_sold * days_per_month
-    annual_byproduct_sold = monthly_byproduct_sold * 12
+    monthly_byproduct_generated = monthly_paddy_consumption - monthly_poha_production
+    annual_byproduct_generated = annual_paddy_consumption - annual_poha_production
+    
+    # Apply validation check - can't sell more than generated
+    daily_byproduct_sold = min(daily_byproduct_sold_target, daily_byproduct_generated)
+    monthly_byproduct_sold = min(monthly_byproduct_sold_target, monthly_byproduct_generated)
+    annual_byproduct_sold = min(annual_byproduct_sold_target, annual_byproduct_generated)
+    
+    # Check if we're hitting the limit (for warning display)
+    byproduct_limit_hit = daily_byproduct_sold_target > daily_byproduct_generated
     
     # Revenue calculations
     total_daily_revenue = (daily_poha_production * poha_price) + (daily_byproduct_sold * byproduct_rate_kg)
@@ -239,7 +270,7 @@ def run_financial_model(inputs):
     monthly_gross_profit = total_monthly_revenue - monthly_cogs
     annual_gross_profit = total_annual_revenue - annual_cogs
     
-    # Variable operating costs (now based on paddy input)
+    # Variable operating costs (based on paddy input)
     total_variable_cost_per_kg_paddy = packaging_cost + fuel_cost + other_var_cost
     annual_variable_operating_costs_total = annual_paddy_consumption * total_variable_cost_per_kg_paddy
     
@@ -335,6 +366,19 @@ results = run_financial_model(all_inputs)
 if 'error' in results:
     st.error(results['error'])
 else:
+    # Display warning if byproduct limit is hit
+    if results.get('byproduct_limit_hit', False):
+        st.markdown(f"""
+        <div class="warning-box">
+            <strong>⚠️ Byproduct Constraint Warning:</strong><br>
+            You're trying to sell {results['byproduct_sale_percent']:.1f}% of paddy input as byproduct 
+            ({results['daily_byproduct_sold_target']:,.0f} kg/day), but only {results['daily_byproduct_generated']:,.0f} kg/day 
+            is available after poha production. Sales capped at maximum available.
+            <br><br>
+            <strong>Suggestion:</strong> Consider reducing the byproduct sale percentage or adjusting the poha yield.
+        </div>
+        """, unsafe_allow_html=True)
+    
     # Display KPIs
     st.header("📈 Key Performance Indicators (Annual)")
     
@@ -348,14 +392,24 @@ else:
     
     st.divider()
     
-    # Summary table
+    # Summary table with byproduct details
     st.header("📊 Daily, Monthly, and Annual Summary")
     
     summary_data = {
-        "Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Total Revenue", "COGS", "Gross Profit"],
+        "Metric": [
+            "Paddy Consumption (kg)", 
+            "Poha Production (kg)", 
+            "Byproduct Generated (kg)",
+            "Byproduct Sold (kg)",
+            "Total Revenue", 
+            "COGS", 
+            "Gross Profit"
+        ],
         "Daily": [
             f"{results['daily_paddy_consumption']:,.0f}",
             f"{results['daily_poha_production']:,.0f}",
+            f"{results['daily_byproduct_generated']:,.0f}",
+            f"{results['daily_byproduct_sold']:,.0f}",
             format_indian_currency(results['total_daily_revenue']),
             format_indian_currency(results['daily_cogs']),
             format_indian_currency(results['daily_gross_profit'])
@@ -363,6 +417,8 @@ else:
         "Monthly": [
             f"{results['monthly_paddy_consumption']:,.0f}",
             f"{results['monthly_poha_production']:,.0f}",
+            f"{results['monthly_byproduct_generated']:,.0f}",
+            f"{results['monthly_byproduct_sold']:,.0f}",
             format_indian_currency(results['total_monthly_revenue']),
             format_indian_currency(results['monthly_cogs']),
             format_indian_currency(results['monthly_gross_profit'])
@@ -370,6 +426,8 @@ else:
         "Annual": [
             f"{results['annual_paddy_consumption']:,.0f}",
             f"{results['annual_poha_production']:,.0f}",
+            f"{results['annual_byproduct_generated']:,.0f}",
+            f"{results['annual_byproduct_sold']:,.0f}",
             format_indian_currency(results['total_annual_revenue']),
             format_indian_currency(results['annual_cogs']),
             format_indian_currency(results['annual_gross_profit'])
@@ -387,8 +445,13 @@ else:
     rm_cost_per_kg_paddy = results['paddy_rate']
     total_variable_cost_per_kg_paddy = rm_cost_per_kg_paddy + results['total_variable_cost_per_kg_paddy']
     
-    # Revenue per kg of paddy input
-    revenue_per_kg_paddy = (results['poha_price'] * (results['paddy_yield'] / 100)) + (results['byproduct_rate_kg'] * (1 - results['paddy_yield'] / 100) * (results['byproduct_sale_percent'] / 100))
+    # Revenue per kg of paddy input (corrected calculation)
+    poha_revenue_per_kg_paddy = results['poha_price'] * (results['paddy_yield'] / 100)
+    byproduct_revenue_per_kg_paddy = results['byproduct_rate_kg'] * min(
+        results['byproduct_sale_percent'] / 100,
+        (100 - results['paddy_yield']) / 100
+    )
+    revenue_per_kg_paddy = poha_revenue_per_kg_paddy + byproduct_revenue_per_kg_paddy
     
     contribution_margin_per_kg_paddy = revenue_per_kg_paddy - total_variable_cost_per_kg_paddy
     
@@ -401,6 +464,7 @@ else:
     with col_be1:
         st.metric("Breakeven Volume (Paddy)", f"{breakeven_volume_kg_paddy:,.0f} kg")
         st.metric("Breakeven Revenue", format_indian_currency(breakeven_volume_kg_paddy * revenue_per_kg_paddy))
+        st.metric("Contribution Margin per kg Paddy", format_indian_currency(contribution_margin_per_kg_paddy))
     
     with col_be2:
         # Breakeven chart
@@ -432,13 +496,14 @@ else:
     st.header("🔬 Sensitivity Analysis")
     
     sensitivity_variable = st.selectbox("Select variable to analyze:", 
-                                      ("Poha Selling Price", "Paddy Rate", "Paddy to Poha Yield"))
+                                      ("Poha Selling Price", "Paddy Rate", "Paddy to Poha Yield", "Byproduct Sale %"))
     sensitivity_range = st.slider("Select sensitivity range (% change from base):", -50, 50, (-20, 20))
     
     base_value_map = {
         "Poha Selling Price": 'poha_price',
         "Paddy Rate": 'paddy_rate',
-        "Paddy to Poha Yield": 'paddy_yield'
+        "Paddy to Poha Yield": 'paddy_yield',
+        "Byproduct Sale %": 'byproduct_sale_percent'
     }
     
     var_key = base_value_map[sensitivity_variable]
@@ -573,43 +638,42 @@ else:
         st.markdown(f"**Daily Paddy Consumption:** `{results['paddy_rate_kg_hr']:,.0f} kg/hr * {results['hours_per_day']} hrs = {results['daily_paddy_consumption']:,.0f} kg`")
         st.markdown(f"**Daily Poha Production:** `{results['daily_paddy_consumption']:,.0f} kg * {results['paddy_yield']:.1f}% = {results['daily_poha_production']:,.0f} kg`")
         st.markdown(f"**Daily Byproduct Generated:** `{results['daily_paddy_consumption']:,.0f} kg - {results['daily_poha_production']:,.0f} kg = {results['daily_byproduct_generated']:,.0f} kg`")
-        st.markdown(f"**Daily Byproduct Sold:** `{results['daily_byproduct_generated']:,.0f} kg * {results['byproduct_sale_percent']:.1f}% = {results['daily_byproduct_sold']:,.0f} kg`")
+        
+        st.markdown("##### 2. Byproduct Sales (Corrected Calculation)")
+        st.markdown(f"**Target Byproduct Sales:** `{results['daily_paddy_consumption']:,.0f} kg * {results['byproduct_sale_percent']:.1f}% = {results['daily_byproduct_sold_target']:,.0f} kg`")
+        st.markdown(f"**Maximum Available:** `{results['daily_byproduct_generated']:,.0f} kg`")
+        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_sold_target']:,.0f}, {results['daily_byproduct_generated']:,.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
+        
+        if results.get('byproduct_limit_hit', False):
+            st.markdown("⚠️ **Note:** Byproduct sales are constrained by availability (accounts for dirt/grit losses)")
+    
+    with st.expander("Revenue Breakdown"):
+        st.markdown("##### Daily Revenue Components")
+        daily_poha_revenue = results['daily_poha_production'] * results['poha_price']
+        daily_byproduct_revenue = results['daily_byproduct_sold'] * results['byproduct_rate_kg']
+        
+        st.markdown(f"**Poha Revenue:** `{results['daily_poha_production']:,.0f} kg * ₹{results['poha_price']:.2f} = {format_indian_currency(daily_poha_revenue)}`")
+        st.markdown(f"**Byproduct Revenue:** `{results['daily_byproduct_sold']:,.0f} kg * ₹{results['byproduct_rate_kg']:.2f} = {format_indian_currency(daily_byproduct_revenue)}`")
+        st.markdown(f"**Total Daily Revenue:** `{format_indian_currency(daily_poha_revenue)} + {format_indian_currency(daily_byproduct_revenue)} = {format_indian_currency(results['total_daily_revenue'])}`")
     
     with st.expander("Variable Cost Calculation (Per kg Paddy)"):
-        st.markdown("##### Variable Costs are now based on Paddy Input")
+        st.markdown("##### Variable Costs are based on Paddy Input")
         st.markdown(f"**Packaging Cost:** `₹{results['packaging_cost']:.2f} per kg paddy`")
         st.markdown(f"**Fuel/Power Cost:** `₹{results['fuel_cost']:.2f} per kg paddy`")
         st.markdown(f"**Other Variable Cost:** `₹{results['other_var_cost']:.2f} per kg paddy`")
         st.markdown(f"**Total Variable Cost:** `₹{results['total_variable_cost_per_kg_paddy']:.2f} per kg paddy`")
         st.markdown(f"**Annual Variable Costs:** `{results['annual_paddy_consumption']:,.0f} kg * ₹{results['total_variable_cost_per_kg_paddy']:.2f} = {format_indian_currency(results['annual_variable_operating_costs_total'])}`")
     
-    with st.expander("Interest Calculation Details"):
-        st.markdown("##### 1. Interest on Debt for Fixed Assets")
-        st.markdown(f"**Formula:** `Debt Portion of Capex * Interest Rate`")
-        st.markdown(f"`{format_indian_currency(results['total_debt_component'])} * {results['interest_rate']:.2f}% = {format_indian_currency(results['annual_interest_expense_fixed_assets'])}`")
+    with st.expander("Breakeven Analysis Details"):
+        st.markdown("##### Revenue per kg of Paddy Input")
+        st.markdown(f"**Poha Revenue per kg Paddy:** `₹{results['poha_price']:.2f} * {results['paddy_yield']:.1f}% = ₹{poha_revenue_per_kg_paddy:.2f}`")
+        st.markdown(f"**Byproduct Revenue per kg Paddy:** `₹{results['byproduct_rate_kg']:.2f} * {min(results['byproduct_sale_percent'], 100 - results['paddy_yield']):.1f}% = ₹{byproduct_revenue_per_kg_paddy:.2f}`")
+        st.markdown(f"**Total Revenue per kg Paddy:** `₹{poha_revenue_per_kg_paddy:.2f} + ₹{byproduct_revenue_per_kg_paddy:.2f} = ₹{revenue_per_kg_paddy:.2f}`")
         
-        st.markdown("##### 2. Interest on Working Capital")
-        st.markdown(f"**Formula:** `Net Working Capital * Interest Rate` (if NWC > 0)")
-        if results['net_working_capital'] > 0:
-            st.markdown(f"`{format_indian_currency(results['net_working_capital'])} * {results['interest_rate']:.2f}% = {format_indian_currency(results['interest_on_working_capital'])}`")
-        else:
-            st.markdown("`Net Working Capital is not positive, so no interest is charged.`")
-        
-        st.markdown("##### 3. Total Annual Interest Expense")
-        st.markdown(f"**Formula:** `Interest on Debt + Interest on Working Capital`")
-        st.markdown(f"`{format_indian_currency(results['annual_interest_expense_fixed_assets'])} + {format_indian_currency(results['interest_on_working_capital'])} = {format_indian_currency(results['annual_interest_expense'])}`")
-    
-    with st.expander("ROCE & Capital Employed Calculation"):
-        st.markdown("##### 1. ROCE (Return on Capital Employed)")
-        st.markdown(f"**Formula:** `EBIT / Capital Employed`")
-        st.markdown(f"`{format_indian_currency(results['operating_income_ebit'])} / {format_indian_currency(results['capital_employed'])} = {results['roce']:.2f}%`")
-        
-        st.markdown("##### 2. Capital Employed")
-        st.markdown(f"**Formula:** `Total Assets - Current Liabilities`")
-        st.markdown(f"`{format_indian_currency(results['total_assets_for_roce'])} - {format_indian_currency(results['total_current_liabilities'])} = {format_indian_currency(results['capital_employed'])}`")
-        
-        st.markdown("##### 3. Total Assets")
-        st.markdown(f"**Formula:** `Total Capex + Total Current Assets`")
-        st.markdown(f"`{format_indian_currency(results['total_capex'])} + {format_indian_currency(results['total_current_assets'])} = {format_indian_currency(results['total_assets_for_roce'])}`")
+        st.markdown("##### Cost Structure")
+        st.markdown(f"**Variable Cost per kg Paddy:** `₹{results['paddy_rate']:.2f} + ₹{results['total_variable_cost_per_kg_paddy']:.2f} = ₹{total_variable_cost_per_kg_paddy:.2f}`")
+        st.markdown(f"**Contribution Margin per kg:** `₹{revenue_per_kg_paddy:.2f} - ₹{total_variable_cost_per_kg_paddy:.2f} = ₹{contribution_margin_per_kg_paddy:.2f}`")
+        st.markdown(f"**Fixed Costs (Annual):** `{format_indian_currency(total_fixed_costs_for_breakeven)}`")
+        st.markdown(f"**Breakeven Volume:** `{format_indian_currency(total_fixed_costs_for_breakeven)} ÷ ₹{contribution_margin_per_kg_paddy:.2f} = {breakeven_volume_kg_paddy:,.0f} kg paddy`")
 
-st.success("Dashboard loaded successfully!")
+st.success("Dashboard loaded successfully with corrected byproduct calculations!")
