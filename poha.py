@@ -127,10 +127,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Formatting functions
-def format_indian_currency(amount):
- if not isinstance(amount, (int, float)) or pd.isna(amount) or math.isinf(amount):
- return "N/A"
- amount_str = f"{abs(amount):.2f}"
+def format_crore(amount):
+    try:
+        return f"₹{amount/1e7:,.2f} Cr"
+    except Exception:
+        return "N/A"
  integer_part, decimal_part = amount_str.split('.')
  if len(integer_part) > 3:
  last_three = integer_part[-3:]
