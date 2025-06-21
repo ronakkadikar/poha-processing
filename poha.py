@@ -33,8 +33,45 @@ def format_crore(amount):
 
 st.set_page_config(page_title="Poha Manufacturing Financial Dashboard", page_icon="🌾", layout="wide")
 
+# Custom CSS for sidebar width control and main content compression
 st.markdown("""
 <style>
+    /* Sidebar width control */
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        min-width: 400px;
+        max-width: 400px;
+        width: 400px !important;
+    }
+    
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        min-width: 0px;
+        max-width: 0px;
+        width: 0px !important;
+        margin-left: -400px;
+    }
+    
+    /* Main content area adjustment */
+    .main .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: none;
+        width: 100%;
+    }
+    
+    /* Ensure main content compresses instead of shifting */
+    [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
+        margin-left: 0px;
+        width: calc(100vw - 420px);
+        max-width: calc(100vw - 420px);
+    }
+    
+    [data-testid="stSidebar"][aria-expanded="false"] ~ .main .block-container {
+        margin-left: 0px;
+        width: 100vw;
+        max-width: 100vw;
+    }
+    
+    /* Metric container styles */
     .metric-container {
         background-color: #f0f2f6;
         padding: 1rem;
@@ -91,6 +128,14 @@ st.markdown("""
         margin: 1rem 0;
         color: #856404;
     }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
+            width: calc(100vw - 50px);
+            max-width: calc(100vw - 50px);
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +151,7 @@ with st.sidebar.expander("Production & Yield", expanded=True):
     paddy_rate_kg_hr = st.number_input("Paddy Processing Rate (kg/hr)", value=1000, step=10)
     
     st.markdown("#### Yield & Byproduct")
-    paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=62.0, step=0.1)
+    paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=65.0, step=0.1)
     
     # More sensitive slider with smaller steps
     st.markdown("#### Byproduct Sales (% of Paddy Input)")
@@ -114,16 +159,16 @@ with st.sidebar.expander("Production & Yield", expanded=True):
         "Byproduct Sold (% of Paddy Input)", 
         min_value=0.0, 
         max_value=40.0, 
-        value=34.0, 
+        value=32.0, 
         step=0.1,
         help="Percentage of original paddy input sold as byproduct (accounts for dirt/grit losses)"
     )
 
 with st.sidebar.expander("Financial Assumptions (INR)", expanded=True):
     st.markdown("#### Market Rates")
-    paddy_rate = st.number_input("Paddy Rate (INR/kg)", value=21.5, step=0.1)
+    paddy_rate = st.number_input("Paddy Rate (INR/kg)", value=22.0, step=0.1)
     poha_price = st.number_input("Poha Selling Price (INR/kg)", value=45.0, step=0.1)
-    byproduct_rate_kg = st.number_input("Byproduct Rate (INR/kg)", value=5.0, step=0.1)
+    byproduct_rate_kg = st.number_input("Byproduct Rate (INR/kg)", value=7.0, step=0.1)
 
 with st.sidebar.expander("Capital Expenditure (Capex)", expanded=True):
     st.markdown("#### Investment")
@@ -567,7 +612,7 @@ else:
         st.markdown("##### 2. Byproduct Sales (Corrected Calculation)")
         st.markdown(f"**Target Byproduct Sales:** `{results['daily_paddy_consumption']:,.0f} kg * {results['byproduct_sale_percent']:.1f}% = {results['daily_byproduct_sold_target']:,.0f} kg`")
         st.markdown(f"**Maximum Available:** `{results['daily_byproduct_generated']:,.0f} kg`")
-        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_sold_target']:,.0f}, {results['daily_byproduct_generated']:,.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
+        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_sold_target']:,.0f}, {results['daily_byproduct_generated']::.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
         
         if results.get('byproduct_limit_hit', False):
             st.markdown("⚠️ **Note:** Byproduct sales are constrained by availability (accounts for dirt/grit losses)")
@@ -608,4 +653,4 @@ else:
         st.markdown(f"**Fixed Costs (Annual):** `{format_indian_currency(total_fixed_costs_for_breakeven)}`")
         st.markdown(f"**Breakeven Volume:** `{format_indian_currency(total_fixed_costs_for_breakeven)} ÷ ₹{contribution_margin_per_kg_paddy:.2f} = {breakeven_volume_kg_paddy:,.0f} kg paddy`")
 
-st.success("Dashboard loaded successfully with enhanced KPIs and optimized calculations!")
+st.success("Dashboard loaded successfully with responsive sidebar and updated parameters!")
