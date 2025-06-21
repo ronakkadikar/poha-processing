@@ -103,7 +103,7 @@ with st.sidebar.expander("Operational Assumptions", expanded=True):
 
 with st.sidebar.expander("Production & Yield", expanded=True):
     st.markdown("#### Plant Input (Paddy)")
-    paddy_rate_kg_hr = st.number_input("Paddy Processing Rate (kg/hr)", value=1290, step=10)
+    paddy_rate_kg_hr = st.number_input("Paddy Processing Rate (kg/hr)", value=1000, step=10)
     
     st.markdown("#### Yield & Byproduct")
     paddy_yield = st.number_input("Paddy to Poha Yield (%)", min_value=50.0, max_value=80.0, value=62.0, step=0.1)
@@ -134,7 +134,7 @@ with st.sidebar.expander("Capital Expenditure (Capex)", expanded=True):
 
 with st.sidebar.expander("Operating Costs", expanded=True):
     st.markdown("##### Variable Costs (per kg of Paddy Input)")
-    packaging_cost = st.number_input("Packaging Material (per kg paddy)", value=0.31, step=0.01)
+    packaging_cost = st.number_input("Packaging Material (per kg paddy)", value=0.5, step=0.01)
     fuel_cost = st.number_input("Fuel/Power Variable (per kg paddy)", value=0.0, step=0.01)
     other_var_cost = st.number_input("Other Variable Costs (per kg paddy)", value=0.0, step=0.01)
     
