@@ -21,25 +21,20 @@ st.markdown("""
     min-width: 50px !important;
 }
 
-/* Main content responsive adjustment */
+/* Main content responsive adjustment - Key fix here */
 .main .block-container {
     padding: 1rem;
-    transition: margin-left 0.3s ease, width 0.3s ease;
-    max-width: none !important;
-    width: 100% !important;
+    transition: margin-left 0.3s ease;
+    max-width: none;  /* Remove the 1024px max-width restriction */
 }
 
 /* Dynamic content adjustment based on sidebar state */
 [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
     margin-left: 300px;
-    width: calc(100vw - 300px) !important;
-    max-width: calc(100vw - 300px) !important;
 }
 
 [data-testid="stSidebar"][aria-expanded="false"] ~ .main .block-container {
     margin-left: 50px;
-    width: calc(100vw - 50px) !important;
-    max-width: calc(100vw - 50px) !important;
 }
 
 /* Ensure all content is responsive */
@@ -48,7 +43,7 @@ st.markdown("""
     max-width: 100% !important;
 }
 
-/* Custom metric styling */
+/* Custom metric styling (rest of your existing CSS) */
 .metric-container {
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     padding: 1rem;
@@ -133,8 +128,6 @@ st.markdown("""
     
     [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
         margin-left: 250px;
-        width: calc(100vw - 250px) !important;
-        max-width: calc(100vw - 250px) !important;
     }
     
     .metric-container {
@@ -146,8 +139,6 @@ st.markdown("""
 @media (max-width: 480px) {
     [data-testid="stSidebar"][aria-expanded="true"] ~ .main .block-container {
         margin-left: 0;
-        width: 100% !important;
-        max-width: 100% !important;
     }
 }
 </style>
