@@ -3,45 +3,34 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 
-# --- Definitive CSS Solution ---
-# This CSS block is designed to be robust and override Streamlit's default styles
-# to prevent the main content from being truncated when the sidebar is open.
+# --- Page and Layout Configuration ---
+# Set sidebar to be open by default for a static layout experience
+st.set_page_config(
+    page_title="Poha Manufacturing Dashboard", 
+    page_icon="🌾", 
+    layout="wide",
+    initial_sidebar_state="expanded" 
+)
+
+# --- Simplified CSS for a Static, Fixed Layout ---
+# This CSS creates a permanent left margin to account for the open sidebar.
+# The main content area will no longer shift or resize.
 st.markdown("""
 <style>
-    /* Target the main container of the app, not just the block-container */
-    /* This ensures that the margin adjustment affects the entire content area */
+    /* Define a fixed width for the sidebar */
+    [data-testid="stSidebar"] {
+        width: 320px !important;
+        min-width: 320px !important;
+    }
+
+    /* Create a fixed margin on the left of the main content area to prevent overlap */
     div.main {
-        transition: margin-left 0.3s ease-in-out;
+        margin-left: 320px;
     }
 
-    /* --- Sidebar Open State --- */
-    /* When the sidebar is expanded, this rule applies */
-    [data-testid="stSidebar"][aria-expanded="true"] {
-        width: 300px !important; /* Set a fixed width for the open sidebar */
-        min-width: 300px !important;
-    }
-
-    /* This pushes the main content to the right to make space for the open sidebar */
-    [data-testid="stSidebar"][aria-expanded="true"] ~ div.main {
-        margin-left: 300px;
-    }
-
-    /* --- Sidebar Closed State --- */
-    /* When the sidebar is collapsed, this rule applies */
-    [data-testid="stSidebar"][aria-expanded="false"] {
-        width: 50px !important; /* Set a fixed, smaller width for the collapsed icon bar */
-        min-width: 50px !important;
-    }
-    
-    /* This pushes the main content to the right by a smaller amount */
-    [data-testid="stSidebar"][aria-expanded="false"] ~ div.main {
-        margin-left: 50px;
-    }
-
-    /* --- General Content Styling (Your original styles) --- */
-    /* This ensures that all content within the main area is responsive */
-    .block-container, .stDataFrame, .js-plotly-plot, .stMetric {
-        width: 100% !important;
+    /* General content styling */
+    .block-container {
+        padding: 1rem 2rem; /* Adjusted padding for better spacing */
         max-width: 100% !important;
     }
 
@@ -65,44 +54,27 @@ st.markdown("""
     .metric-title { font-size: 0.875rem; color: #2c3e50; font-weight: 600; }
     .metric-value { font-size: 1.25rem; font-weight: bold; color: #2c3e50; }
     .metric-delta { font-size: 0.75rem; font-weight: 500; }
-
+    
     /* Tooltip styling */
     .tooltip { position: relative; cursor: pointer; }
     .tooltip .tooltiptext {
-        visibility: hidden;
-        width: 280px;
-        background-color: #34495e;
-        color: white;
-        text-align: left;
-        border-radius: 8px;
-        padding: 10px;
-        position: absolute;
-        z-index: 1000;
-        bottom: 125%;
-        left: 50%;
-        margin-left: -140px;
-        opacity: 0;
-        transition: opacity 0.3s;
-        font-size: 12px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        visibility: hidden; width: 280px; background-color: #34495e; color: white;
+        text-align: left; border-radius: 8px; padding: 10px; position: absolute;
+        z-index: 1000; bottom: 125%; left: 50%; margin-left: -140px; opacity: 0;
+        transition: opacity 0.3s; font-size: 12px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
 
     /* Warning box */
     .warning-box {
         background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-        border: 1px solid #f39c12;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-        color: #8b4513;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border: 1px solid #f39c12; border-radius: 8px; padding: 1rem;
+        margin: 1rem 0; color: #8b4513; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-
-# Utility functions
+# --- Utility Functions ---
 def format_crore(amount):
     try:
         return f"₹{amount/1e7:,.2f} Cr"
@@ -127,7 +99,7 @@ def format_currency(amount):
     except:
         return "N/A"
 
-# Configuration
+# --- Configuration Dictionaries ---
 CONFIG = {
     "Operational": {
         "hours_per_day": {"label": "Production Hours/Day", "type": "number", "min_value": 5, "max_value": 24, "value": 10, "step": 1},
@@ -183,10 +155,7 @@ RATIOS_INFO = {
     "ROE": {"formula": "(Net Profit / Equity) × 100", "explanation": "Return to shareholders"}
 }
 
-# Page setup
-st.set_page_config(page_title="Poha Manufacturing Dashboard", page_icon="🌾", layout="wide")
-
-# Sidebar
+# --- Sidebar Rendering ---
 def render_sidebar():
     inputs = {}
     st.sidebar.header("⚙️ Parameters")
@@ -201,49 +170,37 @@ def render_sidebar():
                     inputs[key] = st.slider(**config_copy)
     return inputs
 
-# Financial model
+# --- Financial Calculation Engine ---
 def calculate_financials(inputs):
     total_capex = inputs['land_cost'] + inputs['civil_work_cost'] + inputs['machinery_cost']
     if any(v <= 0 for v in [inputs['paddy_yield'], inputs['poha_price'], total_capex]):
         return {'error': 'Invalid inputs: Yield, Price, and Capex must be > 0'}
     
-    # Production calculations
     daily_paddy = inputs['paddy_rate_kg_hr'] * inputs['hours_per_day']
     monthly_paddy = daily_paddy * inputs['days_per_month']
     annual_paddy = monthly_paddy * 12
-    
     daily_poha = daily_paddy * (inputs['paddy_yield'] / 100)
     monthly_poha = daily_poha * inputs['days_per_month']
     annual_poha = monthly_poha * 12
-    
-    # Byproduct calculations
     daily_byproduct_target = daily_paddy * (inputs['byproduct_sale_percent'] / 100)
     daily_byproduct_gen = daily_paddy - daily_poha
     daily_byproduct_sold = min(daily_byproduct_target, daily_byproduct_gen)
     monthly_byproduct_sold = daily_byproduct_sold * inputs['days_per_month']
     annual_byproduct_sold = monthly_byproduct_sold * 12
     byproduct_limit_hit = daily_byproduct_target > daily_byproduct_gen
-    
-    # Revenue calculations
     daily_revenue = (daily_poha * inputs['poha_price']) + (daily_byproduct_sold * inputs['byproduct_rate_kg'])
     monthly_revenue = daily_revenue * inputs['days_per_month']
     annual_revenue = monthly_revenue * 12
-    
-    # Cost calculations
     annual_cogs = annual_paddy * inputs['paddy_rate']
     gross_profit = annual_revenue - annual_cogs
-    
     var_cost_per_kg = inputs['packaging_cost'] + inputs['fuel_cost'] + inputs['other_var_cost']
     annual_var_costs = annual_paddy * var_cost_per_kg
     monthly_fixed_opex = sum([inputs[k] for k in ['rent_per_month', 'labor_per_month', 'electricity_per_month', 
                                                   'security_ssc_insurance_per_month', 'misc_per_month']])
     annual_fixed_opex = monthly_fixed_opex * 12
     total_opex = annual_fixed_opex + annual_var_costs
-    
-    annual_depreciation = (inputs['machinery_cost'] + inputs['civil_work_cost']) / inputs['machinery_useful_life_years']
+    annual_depreciation = (inputs['machinery_cost'] + inputs['civil_work_cost']) / inputs['machinery_useful_life_years'] if inputs['machinery_useful_life_years'] > 0 else 0
     ebit = gross_profit - total_opex - annual_depreciation
-    
-    # Working capital
     daily_cogs = annual_cogs / 365
     daily_prod_cost = (annual_cogs + annual_var_costs) / annual_poha if annual_poha > 0 else 0
     daily_rev = annual_revenue / 365
@@ -254,19 +211,14 @@ def calculate_financials(inputs):
     current_assets = rm_inventory + fg_inventory + receivables
     current_liabilities = payables
     net_working_capital = current_assets - current_liabilities
-    
-    # Financing
     equity = total_capex * (inputs['equity_contrib'] / 100)
     debt = total_capex - equity
     interest_fixed = debt * (inputs['interest_rate'] / 100)
     interest_wc = max(0, net_working_capital) * (inputs['interest_rate'] / 100)
     total_interest = interest_fixed + interest_wc
-    
     ebt = ebit - total_interest
     taxes = max(0, ebt) * (inputs['tax_rate_percent'] / 100)
     net_profit = ebt - taxes
-    
-    # Ratios
     total_assets = total_capex + current_assets
     capital_employed = total_assets - current_liabilities
     roce = (ebit / capital_employed) * 100 if capital_employed != 0 else float('inf')
@@ -296,11 +248,13 @@ def calculate_financials(inputs):
         'current_assets': current_assets, 'total_assets': total_assets, 'capital_employed': capital_employed
     }
 
-# Custom metric component
+# --- Reusable Metric Component ---
 def custom_metric(col, label, value, sub_value, info_key):
     formula, explanation = RATIOS_INFO[info_key].values()
     try:
-        numeric_value = float(str(sub_value).replace('%', '').replace(' Margin', '').replace('₹', '').replace(',', '').strip())
+        # Handle cases where sub_value might be empty string
+        numeric_str = str(sub_value).replace('%', '').replace(' Margin', '').replace('₹', '').replace(',', '').strip()
+        numeric_value = float(numeric_str) if numeric_str else 0
     except:
         numeric_value = 0
     color = 'green' if numeric_value >= 0 else 'red'
@@ -317,7 +271,7 @@ def custom_metric(col, label, value, sub_value, info_key):
         </div>
         """, unsafe_allow_html=True)
 
-# Main dashboard
+# --- Main Dashboard Rendering ---
 def render_dashboard(inputs):
     results = calculate_financials(inputs)
     
@@ -325,62 +279,62 @@ def render_dashboard(inputs):
         st.error(results['error'])
         return
     
-    # Warning for byproduct constraint
     if results['byproduct_limit_hit']:
         st.markdown(f"""
         <div class="warning-box">
             <strong>⚠️ Byproduct Constraint:</strong> Trying to sell {results['byproduct_sale_percent']:.1f}% 
-            ({results['daily_byproduct_target']:,.0f} kg/day) but only {results['daily_byproduct_gen']:,.0f} kg/day available.
-            <br><strong>Suggestion:</strong> Reduce byproduct sale % or adjust yield.
+            ({results['daily_byproduct_target']:,.0f} kg/day) but only {results['daily_byproduct_gen']:,.0f} kg/day is generated.
+            <br><strong>Suggestion:</strong> Reduce 'Byproduct Sale %' in the sidebar to be less than the available amount.
         </div>
         """, unsafe_allow_html=True)
     
-    # KPIs
     st.header("📈 Key Performance Indicators")
-    col1, col2, col3, col4 = st.columns(4)
-    custom_metric(col1, "Revenue", format_currency(results['annual_revenue']), "", "Revenue")
-    custom_metric(col2, "COGS", format_currency(results['annual_cogs']), "", "COGS")
-    custom_metric(col3, "Gross Margin", f"{results['gross_margin']:.1f}%", format_currency(results['gross_profit']), "Gross Margin")
-    custom_metric(col4, "Contribution Margin", f"{results['contribution_margin_pct']:.1f}%", format_currency(results['contribution_margin']), "Contribution Margin")
     
-    col5, col6, col7, col8 = st.columns(4)
-    custom_metric(col5, "Net Profit", format_currency(results['net_profit']), f"{results['net_profit_margin']:.1f}%", "Net Profit")
-    custom_metric(col6, "EBITDA", format_currency(results['ebitda']), f"{results['ebitda_margin']:.1f}%", "EBITDA")
-    custom_metric(col7, "ROCE", f"{results['roce']:.1f}%", "", "ROCE")
-    custom_metric(col8, "ROE", f"{results['roe']:.1f}%", "", "ROE")
+    # Reorganized KPI grid into 3 rows (3-3-2)
+    row1_col1, row1_col2, row1_col3 = st.columns(3)
+    custom_metric(row1_col1, "Revenue", format_currency(results['annual_revenue']), "", "Revenue")
+    custom_metric(row1_col2, "COGS", format_currency(results['annual_cogs']), "", "COGS")
+    custom_metric(row1_col3, "Gross Margin", f"{results['gross_margin']:.1f}%", format_currency(results['gross_profit']), "Gross Margin")
+    
+    row2_col1, row2_col2, row2_col3 = st.columns(3)
+    custom_metric(row2_col1, "Contribution Margin", f"{results['contribution_margin_pct']:.1f}%", format_currency(results['contribution_margin']), "Contribution Margin")
+    custom_metric(row2_col2, "Net Profit", format_currency(results['net_profit']), f"{results['net_profit_margin']:.1f}% Margin", "Net Profit")
+    custom_metric(row2_col3, "EBITDA", format_currency(results['ebitda']), f"{results['ebitda_margin']:.1f}% Margin", "EBITDA")
+
+    row3_col1, row3_col2, _ = st.columns(3) # Use 3 columns to align with rows above
+    custom_metric(row3_col1, "ROCE", f"{results['roce']:.1f}%", "", "ROCE")
+    custom_metric(row3_col2, "ROE", f"{results['roe']:.1f}%", "", "ROE")
     
     st.divider()
     
-    # Summary table
     st.header("📊 Production & Financial Summary")
     summary_data = {
-        "Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", 
-                   "Total Revenue", "COGS", "Gross Profit"],
-        "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['daily_poha']:,.0f}", f"{results['daily_byproduct_gen']:,.0f}", 
-                  f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['daily_revenue']), 
-                  format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)],
-        "Monthly": [f"{results['monthly_paddy']:,.0f}", f"{results['monthly_poha']:,.0f}", 
-                    f"{results['daily_byproduct_gen'] * results['days_per_month']:,.0f}", f"{results['monthly_byproduct_sold']:,.0f}", 
-                    format_currency(results['monthly_revenue']), format_currency(results['annual_cogs']/12), 
-                    format_currency(results['gross_profit']/12)],
-        "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", 
-                   f"{results['daily_byproduct_gen'] * results['days_per_month'] * 12:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", 
-                   format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), 
-                   format_currency(results['gross_profit'])]
+        "Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"],
+        "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['daily_poha']:,.0f}", f"{results['daily_byproduct_gen']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['daily_revenue']), format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)],
+        "Monthly": [f"{results['monthly_paddy']:,.0f}", f"{results['monthly_poha']:,.0f}", f"{results['daily_byproduct_gen'] * results['days_per_month']:,.0f}", f"{results['monthly_byproduct_sold']:,.0f}", format_currency(results['monthly_revenue']), format_currency(results['annual_cogs']/12), format_currency(results['gross_profit']/12)],
+        "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", f"{results['daily_byproduct_gen'] * results['days_per_month'] * 12:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), format_currency(results['gross_profit'])]
     }
-    st.dataframe(pd.DataFrame(summary_data), hide_index=True, use_container_width=True)
+    
+    # Using column_config to adjust DataFrame column widths
+    st.dataframe(
+        pd.DataFrame(summary_data), 
+        hide_index=True, 
+        use_container_width=True,
+        column_config={
+            "Metric": st.column_config.Column(width="medium"),
+            "Daily": st.column_config.Column(width="small"),
+            "Monthly": st.column_config.Column(width="small"),
+            "Annual": st.column_config.Column(width="small"),
+        }
+    )
     
     st.divider()
     
-    # Enhanced Breakeven Analysis
     st.header("💡 Breakeven Analysis")
-    
-    # Breakeven selection
     col_be_select, _ = st.columns([1, 2])
     with col_be_select:
         breakeven_metric = st.selectbox("Select Breakeven Metric:", ["EBITDA", "Net Profit (PAT)"])
     
-    # Calculate breakeven
     rm_cost = results['paddy_rate']
     total_var_cost = rm_cost + results['total_var_cost_per_kg']
     poha_rev = results['poha_price'] * (results['paddy_yield'] / 100)
@@ -392,15 +346,14 @@ def render_dashboard(inputs):
         fixed_costs = results['annual_fixed_opex']
         target_metric = "EBITDA"
     else:
-        fixed_costs = results['annual_fixed_opex'] + results['annual_depreciation'] + results['total_interest'] + \
-                     (max(0, results['annual_fixed_opex'] + results['annual_depreciation'] - results['total_interest']) * results['tax_rate_percent'] / 100)
+        fixed_costs = results['annual_fixed_opex'] + results['annual_depreciation'] + results['total_interest']
         target_metric = "Net Profit"
     
     breakeven_vol = fixed_costs / contribution_per_kg if contribution_per_kg > 0 else float('inf')
     
     col_be1, col_be2 = st.columns(2)
     with col_be1:
-        st.metric(f"Breakeven Volume ({target_metric})", f"{breakeven_vol:,.0f} kg")
+        st.metric(f"Breakeven Volume ({target_metric})", f"{breakeven_vol:,.0f} kg Paddy/Year")
         st.metric("Breakeven Revenue", format_currency(breakeven_vol * rev_per_kg if breakeven_vol != float('inf') else 0))
         st.metric("Contribution per kg Paddy", format_currency(contribution_per_kg))
     
@@ -410,15 +363,13 @@ def render_dashboard(inputs):
         revenue_line = volumes * rev_per_kg
         cost_line = fixed_costs + (volumes * total_var_cost)
         be_df = pd.DataFrame({'Paddy Volume (kg)': volumes, 'Total Revenue': revenue_line, 'Total Costs': cost_line})
-        fig = px.line(be_df, x='Paddy Volume (kg)', y=['Total Revenue', 'Total Costs'], 
-                     title=f"Breakeven Analysis - {target_metric}")
-        if breakeven_vol != float('inf'):
-            fig.add_vline(x=breakeven_vol, line_dash="dash", line_color="red", annotation_text="Breakeven Point")
+        fig = px.line(be_df, x='Paddy Volume (kg)', y=['Total Revenue', 'Total Costs'], title=f"Breakeven Analysis - {target_metric}")
+        if breakeven_vol != float('inf') and breakeven_vol < max_vol:
+            fig.add_vline(x=breakeven_vol, line_dash="dash", line_color="red", annotation_text="Breakeven")
         st.plotly_chart(fig, use_container_width=True)
     
     st.divider()
     
-    # Sensitivity Analysis
     st.header("🔬 Sensitivity Analysis")
     var_options = ("Poha Selling Price", "Paddy Rate", "Paddy to Poha Yield", "Byproduct Sale %")
     sensitivity_var = st.selectbox("Variable to analyze:", var_options)
@@ -433,108 +384,66 @@ def render_dashboard(inputs):
     for val in range_vals:
         res = calculate_financials({**inputs, var_key: val})
         net_profit = res.get('net_profit', np.nan)
-        sens_data.append({sensitivity_var: val, "Net Profit (Cr)": format_crore(net_profit) if 'error' not in res else "Error", 
-                         "Net Profit": net_profit})
+        sens_data.append({sensitivity_var: val, "Net Profit (Cr)": format_crore(net_profit) if 'error' not in res else "Error", "Net Profit": net_profit})
     
     sens_df = pd.DataFrame(sens_data)
-    col_sens1, col_sens2 = st.columns([1.2, 1])
+    col_sens1, col_sens2 = st.columns([1, 1.2])
     with col_sens1:
         st.dataframe(sens_df[[sensitivity_var, 'Net Profit (Cr)']], use_container_width=True, hide_index=True)
     with col_sens2:
         plot_df = sens_df.dropna(subset=["Net Profit"])
         if not plot_df.empty:
-            fig_sens = px.line(plot_df, x=sensitivity_var, y='Net Profit', 
-                              title=f"Impact of {sensitivity_var} on Net Profit", markers=True)
+            fig_sens = px.line(plot_df, x=sensitivity_var, y='Net Profit', title=f"Impact of {sensitivity_var} on Net Profit", markers=True)
             st.plotly_chart(fig_sens, use_container_width=True)
     
     st.divider()
     
-    # Financial Statements
     col_pnl, col_bs = st.columns([1.2, 1])
     with col_pnl:
         st.header("💰 Profit & Loss Statement")
         pnl_data = {
-            "Metric": ["Total Revenue", "COGS", "**Gross Profit**", "Fixed OpEx", "Variable OpEx", "Depreciation", 
-                       "**EBIT**", "Total Interest", "**EBT**", "Taxes", "**Net Profit**"],
-            "Amount (INR)": [format_currency(results['annual_revenue']), 
-                             f"({format_currency(results['annual_cogs'])})",
-                             format_currency(results['gross_profit']),
-                             f"({format_currency(results['annual_fixed_opex'])})",
-                             f"({format_currency(results['annual_var_costs'])})",
-                             f"({format_currency(results['annual_depreciation'])})",
-                             format_currency(results['ebit']),
-                             f"({format_currency(results['total_interest'])})",
-                             format_currency(results['ebt']),
-                             f"({format_currency(results['taxes'])})",
-                             format_currency(results['net_profit'])]
+            "Metric": ["Total Revenue", "COGS", "**Gross Profit**", "Fixed OpEx", "Variable OpEx", "Depreciation", "**EBIT**", "Total Interest", "**EBT**", "Taxes", "**Net Profit**"],
+            "Amount (INR)": [format_currency(results['annual_revenue']), f"({format_currency(results['annual_cogs'])})", format_currency(results['gross_profit']),
+                             f"({format_currency(results['annual_fixed_opex'])})", f"({format_currency(results['annual_var_costs'])})",
+                             f"({format_currency(results['annual_depreciation'])})", format_currency(results['ebit']),
+                             f"({format_currency(results['total_interest'])})", format_currency(results['ebt']),
+                             f"({format_currency(results['taxes'])})", format_currency(results['net_profit'])]
         }
         pnl_df = pd.DataFrame(pnl_data)
-        st.dataframe(pnl_df, hide_index=True, use_container_width=True)
+        st.dataframe(pnl_df, hide_index=True, use_container_width=True, column_config={"Metric": st.column_config.Column(width="medium"), "Amount (INR)": st.column_config.Column(width="small")})
         st.download_button("📥 Download P&L", pnl_df.to_csv(index=False).encode('utf-8'), "poha_pnl.csv", "text/csv")
     
     with col_bs:
         st.header("💼 Balance Sheet")
         bs_data = {
-            "Item": ["Total Capex", "Equity", "Debt", "**Total Assets**", "RM Inventory", "FG Inventory",
-                     "Receivables", "Payables", "**Net Working Capital**", "**Capital Employed**"],
-            "Amount (INR)": [format_currency(results['total_capex']), format_currency(results['equity']),
-                             format_currency(results['debt']), format_currency(results['total_assets']),
+            "Item": ["Total Capex", "Equity", "Debt", "**Total Assets**", "RM Inventory", "FG Inventory", "Receivables", "Payables", "**Net Working Capital**", "**Capital Employed**"],
+            "Amount (INR)": [format_currency(results['total_capex']), format_currency(results['equity']), format_currency(results['debt']), format_currency(results['total_assets']),
                              format_currency(results['rm_inventory']), format_currency(results['fg_inventory']),
                              format_currency(results['receivables']), f"({format_currency(results['payables'])})",
                              format_currency(results['net_working_capital']), format_currency(results['capital_employed'])]
         }
-        st.dataframe(pd.DataFrame(bs_data), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(bs_data), hide_index=True, use_container_width=True, column_config={"Item": st.column_config.Column(width="medium"), "Amount (INR)": st.column_config.Column(width="small")})
     
     st.divider()
     
-    # Enhanced Detailed Calculations
     st.header("🔍 Detailed Calculation Breakdowns")
-    
-    with st.expander("📈 Production Flow Analysis"):
+    with st.expander("Production Flow Analysis"):
         st.markdown(f"**Daily Paddy Processing:** `{results['paddy_rate_kg_hr']:,.0f} kg/hr × {results['hours_per_day']} hrs = {results['daily_paddy']:,.0f} kg`")
         st.markdown(f"**Daily Poha Output:** `{results['daily_paddy']:,.0f} kg × {results['paddy_yield']:.1f}% = {results['daily_poha']:,.0f} kg`")
-        st.markdown(f"**Daily Byproduct Generated:** `{results['daily_paddy']:,.0f} kg - {results['daily_poha']:,.0f} kg = {results['daily_byproduct_gen']:,.0f} kg`")
-        st.markdown(f"**Target Byproduct Sales:** `{results['daily_paddy']:,.0f} kg × {results['byproduct_sale_percent']:.1f}% = {results['daily_byproduct_target']:,.0f} kg`")
-        st.markdown(f"**Actual Byproduct Sold:** `min({results['daily_byproduct_target']:,.0f}, {results['daily_byproduct_gen']:,.0f}) = {results['daily_byproduct_sold']:,.0f} kg`")
-    
-    with st.expander("💰 Revenue Structure"):
+    with st.expander("Revenue Structure"):
         poha_rev = results['daily_poha'] * results['poha_price']
         byproduct_rev = results['daily_byproduct_sold'] * results['byproduct_rate_kg']
         st.markdown(f"**Poha Revenue:** `{results['daily_poha']:,.0f} kg × ₹{results['poha_price']:.2f} = {format_currency(poha_rev)}`")
-        st.markdown(f"**Byproduct Revenue:** `{results['daily_byproduct_sold']:,.0f} kg × ₹{results['byproduct_rate_kg']:.2f} = {format_currency(byproduct_rev)}`")
-        st.markdown(f"**Total Daily Revenue:** `{format_currency(poha_rev)} + {format_currency(byproduct_rev)} = {format_currency(results['daily_revenue'])}`")
-        st.markdown(f"**Revenue Mix:** Poha: {(poha_rev/results['daily_revenue']*100):.1f}% | Byproduct: {(byproduct_rev/results['daily_revenue']*100):.1f}%")
-    
-    with st.expander("📊 Cost Structure Analysis"):
+    with st.expander("Cost Structure Analysis"):
         st.markdown(f"**Raw Material Cost:** `₹{results['paddy_rate']:.2f}/kg × {results['annual_paddy']:,.0f} kg = {format_currency(results['annual_cogs'])}`")
-        st.markdown(f"**Variable Costs per kg:** Packaging: ₹{results['packaging_cost']:.2f} | Fuel: ₹{results['fuel_cost']:.2f} | Other: ₹{results['other_var_cost']:.2f}")
-        st.markdown(f"**Total Variable Cost:** `₹{results['total_var_cost_per_kg']:.2f}/kg × {results['annual_paddy']:,.0f} kg = {format_currency(results['annual_var_costs'])}`")
-        st.markdown(f"**Fixed Operating Costs:** {format_currency(results['annual_fixed_opex'])}/year")
-        st.markdown(f"**Depreciation:** `₹{results['machinery_cost'] + results['civil_work_cost']:,.0f} ÷ {results['machinery_useful_life_years']} years = {format_currency(results['annual_depreciation'])}`")
-    
-    with st.expander("🏦 Working Capital Details"):
-        st.markdown(f"**Raw Material Inventory:** `{format_currency(results['annual_cogs']/365)}/day × {results['rm_inventory_days']} days = {format_currency(results['rm_inventory'])}`")
-        st.markdown(f"**Finished Goods Inventory:** `{format_currency((results['annual_cogs'] + results['annual_var_costs'])/365)}/day × {results['fg_inventory_days']} days = {format_currency(results['fg_inventory'])}`")
-        st.markdown(f"**Receivables:** `{format_currency(results['annual_revenue']/365)}/day × {results['debtor_days']} days = {format_currency(results['receivables'])}`")
-        st.markdown(f"**Payables:** `{format_currency(results['annual_cogs']/365)}/day × {results['creditor_days']} days = {format_currency(results['payables'])}`")
+    with st.expander("Working Capital Details"):
         st.markdown(f"**Net Working Capital:** `{format_currency(results['current_assets'])} - {format_currency(results['payables'])} = {format_currency(results['net_working_capital'])}`")
-    
-    with st.expander("💹 Financial Ratios & Returns"):
-        st.markdown(f"**Gross Margin:** `({format_currency(results['annual_revenue'])} - {format_currency(results['annual_cogs'])}) ÷ {format_currency(results['annual_revenue'])} = {results['gross_margin']:.1f}%`")
-        st.markdown(f"**EBITDA Margin:** `{format_currency(results['ebitda'])} ÷ {format_currency(results['annual_revenue'])} = {results['ebitda_margin']:.1f}%`")
-        st.markdown(f"**Net Profit Margin:** `{format_currency(results['net_profit'])} ÷ {format_currency(results['annual_revenue'])} = {results['net_profit_margin']:.1f}%`")
+    with st.expander("Financial Ratios & Returns"):
         st.markdown(f"**ROCE:** `{format_currency(results['ebit'])} ÷ {format_currency(results['capital_employed'])} = {results['roce']:.1f}%`")
-        st.markdown(f"**ROE:** `{format_currency(results['net_profit'])} ÷ {format_currency(results['equity'])} = {results['roe']:.1f}%`")
-    
-    with st.expander("⚖️ Financing Structure"):
+    with st.expander("Financing Structure"):
         st.markdown(f"**Total Capital Requirement:** {format_currency(results['total_capex'] + results['net_working_capital'])}")
-        st.markdown(f"**Equity Contribution:** `{results['equity_contrib']:.1f}% × {format_currency(results['total_capex'])} = {format_currency(results['equity'])}`")
-        st.markdown(f"**Debt Financing:** `{format_currency(results['total_capex'])} - {format_currency(results['equity'])} = {format_currency(results['debt'])}`")
-        st.markdown(f"**Interest on Fixed Assets:** `{format_currency(results['debt'])} × {results['interest_rate']:.1f}% = {format_currency(results['debt'] * results['interest_rate'] / 100)}`")
-        st.markdown(f"**Interest on Working Capital:** `{format_currency(max(0, results['net_working_capital']))} × {results['interest_rate']:.1f}% = {format_currency(max(0, results['net_working_capital']) * results['interest_rate'] / 100)}`")
-        st.markdown(f"**Total Annual Interest:** {format_currency(results['total_interest'])}")
 
-# Main execution
+# --- Main Execution ---
 inputs = render_sidebar()
 render_dashboard(inputs)
-st.success("✅ Dashboard loaded successfully with responsive design!")
+st.success("✅ Dashboard loaded successfully with a static layout!")
