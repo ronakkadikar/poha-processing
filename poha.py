@@ -154,13 +154,13 @@ def format_indian_currency(amount):
 # Input configuration
 INPUT_CONFIG = {
     "Operational Assumptions": {
-        "hours_per_day": {"label": "Production Hours per Day", "type": "number", "min": 5, "max": 24, "value": 10, "step": 1},
-        "days_per_month": {"label": "Operational Days per Month", "type": "number", "min": 1, "max": 31, "value": 24, "step": 1}
+        "hours_per_day": {"label": "Production Hours per Day", "type": "number", "min_value": 5, "max_value": 24, "value": 10, "step": 1},
+        "days_per_month": {"label": "Operational Days per Month", "type": "number", "min_value": 1, "max_value": 31, "value": 24, "step": 1}
     },
     "Production & Yield": {
         "paddy_rate_kg_hr": {"label": "Paddy Processing Rate (kg/hr)", "type": "number", "value": 1000, "step": 10},
-        "paddy_yield": {"label": "Paddy to Poha Yield (%)", "type": "number", "min": 50.0, "max": 80.0, "value": 65.0, "step": 0.1},
-        "byproduct_sale_percent": {"label": "Byproduct Sold (% of Paddy Input)", "type": "slider", "min": 0.0, "max": 40.0, "value": 32.0, "step": 0.1, "help": "Percentage of original paddy input sold as byproduct"}
+        "paddy_yield": {"label": "Paddy to Poha Yield (%)", "type": "number", "min_value": 50.0, "max_value": 80.0, "value": 65.0, "step": 0.1},
+        "byproduct_sale_percent": {"label": "Byproduct Sold (% of Paddy Input)", "type": "slider", "min_value": 0.0, "max_value": 40.0, "value": 32.0, "step": 0.1, "help": "Percentage of original paddy input sold as byproduct"}
     },
     "Financial Assumptions (INR)": {
         "paddy_rate": {"label": "Paddy Rate (INR/kg)", "type": "number", "value": 22.0, "step": 0.1},
@@ -184,9 +184,9 @@ INPUT_CONFIG = {
         "misc_per_month": {"label": "Misc Overheads", "type": "number", "value": 300000, "step": 1000}
     },
     "Funding & Tax": {
-        "equity_contrib": {"label": "Equity Contribution (%)", "type": "number", "min": 0.0, "max": 100.0, "value": 30.0, "step": 0.1},
+        "equity_contrib": {"label": "Equity Contribution (%)", "type": "number", "min_value": 0.0, "max_value": 100.0, "value": 30.0, "step": 0.1},
         "interest_rate": {"label": "Interest Rate (%)", "type": "number", "value": 9.0, "step": 0.01},
-        "tax_rate_percent": {"label": "Corporate Tax Rate (%)", "type": "number", "min": 0.0, "max": 50.0, "value": 25.0, "step": 0.1}
+        "tax_rate_percent": {"label": "Corporate Tax Rate (%)", "type": "number", "min_value": 0.0, "max_value": 50.0, "value": 25.0, "step": 0.1}
     },
     "Working Capital Days": {
         "rm_inventory_days": {"label": "Raw Material Inventory Days", "type": "number", "value": 72, "step": 1},
@@ -226,7 +226,6 @@ def render_sidebar():
                 elif input_type == "slider":
                     inputs[key] = st.slider(**config_copy)
     return inputs
-
 
 # Financial model
 def run_financial_model(inputs):
@@ -276,7 +275,7 @@ def run_financial_model(inputs):
     
     # Working capital
     daily_cogs = annual_cogs / 365
-    daily_prod_cost = (annual_cogs + annual_var_costs) / annual_poha
+    daily_prod_cost = (annual_cogs + annual_var_costs) / annual_poha if annual_poha > 0 else 0
     daily_rev = annual_revenue / 365
     rm_inventory = daily_cogs * inputs['rm_inventory_days']
     fg_inventory = (daily_poha * daily_prod_cost) * inputs['fg_inventory_days']
@@ -333,7 +332,7 @@ def run_financial_model(inputs):
 def custom_metric(col, label, value, sub_value, info_key):
     formula, explanation = KEY_RATIOS_INFO[info_key].values()
     try:
-        numeric_value = float(sub_value.replace('%', '').replace(' Margin', '').strip())
+        numeric_value = float(str(sub_value).replace('%', '').replace(' Margin', '').replace('₹', '').replace(',', '').strip())
     except:
         numeric_value = 0
     color = 'green' if numeric_value >= 0 else 'red'
@@ -420,7 +419,7 @@ def render_dashboard(inputs):
     col_be1, col_be2 = st.columns(2)
     with col_be1:
         st.metric("Breakeven Volume (Paddy)", f"{breakeven_vol:,.0f} kg")
-        st.metric("Breakeven Revenue", format_indian_currency(breakeven_vol * rev_per_kg))
+        st.metric("Breakeven Revenue", format_indian_currency(breakeven_vol * rev_per_kg if breakeven_vol != float('inf') else 0))
         st.metric("Contribution Margin per kg Paddy", format_indian_currency(cm_per_kg))
     
     with col_be2:
@@ -459,8 +458,9 @@ def render_dashboard(inputs):
         st.dataframe(sens_df[[sensitivity_var, 'Net Profit (Cr)']], use_container_width=True, hide_index=True)
     with col_sens2:
         plot_df = sens_df.dropna(subset=["Net Profit"])
-        fig_sens = px.line(plot_df, x=sensitivity_var, y='Net Profit', title=f"Impact of {sensitivity_var} on Net Profit", markers=True)
-        st.plotly_chart(fig_sens, use_container_width=True)
+        if not plot_df.empty:
+            fig_sens = px.line(plot_df, x=sensitivity_var, y='Net Profit', title=f"Impact of {sensitivity_var} on Net Profit", markers=True)
+            st.plotly_chart(fig_sens, use_container_width=True)
     
     st.divider()
     
