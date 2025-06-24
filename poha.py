@@ -7,10 +7,10 @@ import numpy as np
 
 # --- Page and Layout Configuration ---
 st.set_page_config(
-    page_title="Poha Manufacturing Dashboard", 
-    page_icon="🌾", 
+    page_title="Poha Manufacturing Dashboard",
+    page_icon="🌾",
     layout="wide",
-    initial_sidebar_state="expanded" 
+    initial_sidebar_state="expanded"
 )
 
 # --- CSS for a Static, Fixed Layout ---
@@ -59,7 +59,7 @@ st.markdown("""
     .metric-title { font-size: 0.875rem; color: #2c3e50; font-weight: 600; }
     .metric-value { font-size: 1.25rem; font-weight: bold; color: #2c3e50; }
     .metric-delta { font-size: 0.75rem; font-weight: 500; }
-    
+
     /* Tooltip styling */
     .tooltip { position: relative; cursor: pointer; }
     .tooltip .tooltiptext {
@@ -134,13 +134,12 @@ def render_sidebar():
 
 # --- Financial Calculation Engine ---
 def calculate_financials(inputs):
-    # This function remains the same as your provided version
     total_capex = inputs['land_cost'] + inputs['civil_work_cost'] + inputs['machinery_cost']
     if any(v <= 0 for v in [inputs['paddy_yield'], inputs['poha_price'], total_capex]): return {'error': 'Invalid inputs: Yield, Price, and Capex must be > 0'}
     daily_paddy = inputs['paddy_rate_kg_hr'] * inputs['hours_per_day']
     annual_paddy = daily_paddy * inputs['days_per_month'] * 12
     annual_poha = annual_paddy * (inputs['paddy_yield'] / 100)
-    daily_byproduct_gen = daily_paddy - (daily_paddy * (inputs['paddy_yield'] / 100))
+    daily_byproduct_gen = daily_paddy * (1 - inputs['paddy_yield'] / 100)
     daily_byproduct_target = daily_paddy * (inputs['byproduct_sale_percent'] / 100)
     daily_byproduct_sold = min(daily_byproduct_target, daily_byproduct_gen)
     annual_byproduct_sold = daily_byproduct_sold * inputs['days_per_month'] * 12
@@ -164,15 +163,15 @@ def calculate_financials(inputs):
     receivables = daily_rev * inputs['debtor_days']
     payables = daily_cogs * inputs['creditor_days']
     current_assets = rm_inventory + fg_inventory + receivables
-    interest_fixed = (total_capex * (1 - inputs['equity_contrib'] / 100)) * (inputs['interest_rate'] / 100)
+    equity = total_capex * (inputs['equity_contrib'] / 100)
+    debt = total_capex - equity
+    interest_fixed = debt * (inputs['interest_rate'] / 100)
     net_working_capital = current_assets - payables
     interest_wc = max(0, net_working_capital) * (inputs['interest_rate'] / 100)
     total_interest = interest_fixed + interest_wc
     ebt = ebit - total_interest
     taxes = max(0, ebt) * (inputs['tax_rate_percent'] / 100)
     net_profit = ebt - taxes
-    equity = total_capex * (inputs['equity_contrib'] / 100)
-    debt = total_capex - equity
     capital_employed = total_capex + net_working_capital
     roce = (ebit / capital_employed) * 100 if capital_employed != 0 else float('inf')
     net_profit_margin = (net_profit / annual_revenue) * 100 if annual_revenue > 0 else 0
@@ -188,49 +187,46 @@ def calculate_financials(inputs):
 def custom_metric(col, label, value, sub_value, info_key):
     formula, explanation = RATIOS_INFO[info_key].values()
     color = 'green' if (isinstance(sub_value, (int, float)) and sub_value >= 0) or ('Margin' not in str(sub_value) and str(sub_value) != "") else 'red'
-    with col: st.markdown(f"""<div class="metric-container"><div class="tooltip"><div class="metric-title">{label} ℹ️</div><span class="tooltiptext"><strong>Formula:</strong> {formula}<br><strong>Explanation:</strong> {explanation}</span></div><div class="metric-value">{value}</div><div class="metric-delta" style="color: {color};">{sub_value}</div></div>""", unsafe_allow_html=True)
+    with col:
+        st.markdown(f"""
+        <div class="metric-container">
+            <div class="tooltip">
+                <div class="metric-title">{label} ℹ️</div>
+                <span class="tooltiptext"><strong>Formula:</strong> {formula}<br><strong>Explanation:</strong> {explanation}</span>
+            </div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-delta" style="color: {color};">{sub_value}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # --- Detailed Breakdowns Rendering Function ---
 def render_detailed_breakdowns(results):
     st.header("🔍 Detailed Calculation Breakdowns")
-
     with st.expander("Revenue Calculation (Annual)"):
         st.markdown(f"""
         <p>Total revenue is the sum of income from selling the primary product (Poha) and any byproducts.</p>
         <strong>1. Poha Revenue:</strong>
-        <ul>
-            <li><b>Calculation:</b> Annual Poha Production ({format_currency(results['annual_poha'])}) &times; Poha Price per kg ({format_currency(results['poha_price'])}) = <b>{format_currency(results['annual_poha_revenue'])}</b></li>
-        </ul>
+        <ul><li><b>Calculation:</b> Annual Poha Production ({format_currency(results['annual_poha'])}) &times; Poha Price per kg ({format_currency(results['poha_price'])}) = <b>{format_currency(results['annual_poha_revenue'])}</b></li></ul>
         <strong>2. Byproduct Revenue:</strong>
-        <ul>
-            <li><b>Calculation:</b> Annual Byproduct Sold ({format_currency(results['annual_byproduct_sold'])}) &times; Byproduct Price per kg ({format_currency(results['byproduct_rate_kg'])}) = <b>{format_currency(results['annual_byproduct_revenue'])}</b></li>
-        </ul>
+        <ul><li><b>Calculation:</b> Annual Byproduct Sold ({format_currency(results['annual_byproduct_sold'])}) &times; Byproduct Price per kg ({format_currency(results['byproduct_rate_kg'])}) = <b>{format_currency(results['annual_byproduct_revenue'])}</b></li></ul>
         <strong>3. Final Calculation:</strong>
-        <ul>
-            <li><b>Total Annual Revenue:</b> Poha Revenue ({format_currency(results['annual_poha_revenue'])}) + Byproduct Revenue ({format_currency(results['annual_byproduct_revenue'])}) = <b>{format_currency(results['annual_revenue'])}</b></li>
-        </ul>
+        <ul><li><b>Total Annual Revenue:</b> Poha Revenue ({format_currency(results['annual_poha_revenue'])}) + Byproduct Revenue ({format_currency(results['annual_byproduct_revenue'])}) = <b>{format_currency(results['annual_revenue'])}</b></li></ul>
         """, unsafe_allow_html=True)
-
     with st.expander("Working Capital Calculation"):
         st.markdown(f"""
         <p>Working capital is the cash needed to fund day-to-day operations. It's calculated by subtracting operating current liabilities from operating current assets.</p>
-        <strong>1. Calculate Current Assets (Money tied up in operations):</strong>
+        <strong>1. Calculate Current Assets (Money tied up):</strong>
         <ul>
             <li><b>Raw Material Inventory:</b> Daily COGS ({format_currency(results['daily_cogs'])}) &times; {results['rm_inventory_days']} days = <b>{format_currency(results['rm_inventory'])}</b></li>
             <li><b>Finished Goods Inventory:</b> Daily Production Cost ({format_currency(results['daily_prod_cost'])}) &times; {results['fg_inventory_days']} days = <b>{format_currency(results['fg_inventory'])}</b></li>
             <li><b>Accounts Receivable:</b> Daily Revenue ({format_currency(results['daily_rev'])}) &times; {results['debtor_days']} days = <b>{format_currency(results['receivables'])}</b></li>
             <li><b>Total Current Assets:</b> {format_currency(results['rm_inventory'])} + {format_currency(results['fg_inventory'])} + {format_currency(results['receivables'])} = <b>{format_currency(results['current_assets'])}</b></li>
         </ul>
-        <strong>2. Calculate Current Liabilities (Credit received from suppliers):</strong>
-        <ul>
-            <li><b>Accounts Payable:</b> Daily COGS ({format_currency(results['daily_cogs'])}) &times; {results['creditor_days']} days = <b>{format_currency(results['payables'])}</b></li>
-        </ul>
+        <strong>2. Calculate Current Liabilities (Credit received):</strong>
+        <ul><li><b>Accounts Payable:</b> Daily COGS ({format_currency(results['daily_cogs'])}) &times; {results['creditor_days']} days = <b>{format_currency(results['payables'])}</b></li></ul>
         <strong>3. Final Calculation:</strong>
-        <ul>
-            <li><b>Net Working Capital (NWC):</b> Total Current Assets ({format_currency(results['current_assets'])}) - Accounts Payable ({format_currency(results['payables'])}) = <b>{format_currency(results['net_working_capital'])}</b></li>
-        </ul>
+        <ul><li><b>Net Working Capital (NWC):</b> Total Current Assets ({format_currency(results['current_assets'])}) - Accounts Payable ({format_currency(results['payables'])}) = <b>{format_currency(results['net_working_capital'])}</b></li></ul>
         """, unsafe_allow_html=True)
-
     with st.expander("Interest Cost Calculation (Annual)"):
         st.markdown(f"""
         <p>Interest is calculated on both the term loan for capital assets (CAPEX) and the loan required for working capital.</p>
@@ -240,15 +236,10 @@ def render_detailed_breakdowns(results):
             <li><b>Interest on Debt:</b> {format_currency(results['debt'])} &times; {results['interest_rate']}% = <b>{format_currency(results['interest_fixed'])}</b></li>
         </ul>
         <strong>2. Interest on Working Capital Loan:</strong>
-        <ul>
-            <li><b>Interest on NWC:</b> Net Working Capital ({format_currency(results['net_working_capital'])}) &times; {results['interest_rate']}% = <b>{format_currency(results['interest_wc'])}</b></li>
-        </ul>
+        <ul><li><b>Interest on NWC:</b> Net Working Capital ({format_currency(results['net_working_capital'])}) &times; {results['interest_rate']}% = <b>{format_currency(results['interest_wc'])}</b></li></ul>
         <strong>3. Final Calculation:</strong>
-        <ul>
-            <li><b>Total Annual Interest:</b> Interest on Debt ({format_currency(results['interest_fixed'])}) + Interest on NWC ({format_currency(results['interest_wc'])}) = <b>{format_currency(results['total_interest'])}</b></li>
-        </ul>
+        <ul><li><b>Total Annual Interest:</b> Interest on Debt ({format_currency(results['interest_fixed'])}) + Interest on NWC ({format_currency(results['interest_wc'])}) = <b>{format_currency(results['total_interest'])}</b></li></ul>
         """, unsafe_allow_html=True)
-    
     with st.expander("Return on Capital Employed (ROCE) Calculation"):
         st.markdown(f"""
         <p>ROCE measures how efficiently a company is using its capital to generate profits.</p>
@@ -259,20 +250,19 @@ def render_detailed_breakdowns(results):
             <li><b>Total Capital Employed:</b> Total CAPEX ({format_currency(results['total_capex'])}) + NWC ({format_currency(results['net_working_capital'])}) = <b>{format_currency(results['capital_employed'])}</b></li>
         </ul>
         <strong>2. Calculate EBIT (Earnings Before Interest & Tax):</strong>
-        <ul>
-            <li><b>EBIT:</b> (See P&L Statement) = <b>{format_currency(results['ebit'])}</b></li>
-        </ul>
+        <ul><li><b>EBIT:</b> (See P&L Statement) = <b>{format_currency(results['ebit'])}</b></li></ul>
         <strong>3. Final Calculation:</strong>
-        <ul>
-            <li><b>ROCE:</b> (EBIT / Capital Employed) &times; 100 = ({format_currency(results['ebit'])} / {format_currency(results['capital_employed'])}) &times; 100 = <b>{results['roce']:.2f}%</b></li>
-        </ul>
+        <ul><li><b>ROCE:</b> (EBIT / Capital Employed) &times; 100 = ({format_currency(results['ebit'])} / {format_currency(results['capital_employed'])}) &times; 100 = <b>{results['roce']:.2f}%</b></li></ul>
         """, unsafe_allow_html=True)
 
 # --- Main Dashboard Rendering ---
 def render_dashboard(inputs):
     results = calculate_financials(inputs)
-    if 'error' in results: st.error(results['error']); return
-    if results['byproduct_limit_hit']: st.markdown(f"""<div class="warning-box"><strong>⚠️ Byproduct Constraint:</strong> Trying to sell {results['byproduct_sale_percent']:.1f}% ({results['daily_byproduct_target']:,.0f} kg/day) but only {results['daily_byproduct_gen']:,.0f} kg/day is generated. <br><strong>Suggestion:</strong> Reduce 'Byproduct Sale %' in the sidebar to be less than the available amount.</div>""", unsafe_allow_html=True)
+    if 'error' in results:
+        st.error(results['error'])
+        return
+    if results['byproduct_limit_hit']:
+        st.markdown(f"""<div class="warning-box"><strong>⚠️ Byproduct Constraint:</strong> Trying to sell {results['byproduct_sale_percent']:.1f}% ({results['daily_byproduct_target']:,.0f} kg/day) but only {results['daily_byproduct_gen']:,.0f} kg/day is generated. <br><strong>Suggestion:</strong> Reduce 'Byproduct Sale %' in the sidebar.</div>""", unsafe_allow_html=True)
     st.header("📈 Key Performance Indicators")
     row1_col1, row1_col2, row1_col3 = st.columns(3)
     custom_metric(row1_col1, "Annual Revenue", format_currency(results['annual_revenue']), "", "Revenue")
@@ -287,7 +277,7 @@ def render_dashboard(inputs):
     custom_metric(row3_col2, "ROE", f"{results['roe']:.1f}%", "", "ROE")
     st.divider()
     st.header("📊 Production & Financial Summary")
-    summary_data = {"Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"], "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['annual_poha']/(results['days_per_month']*12):,.0f}", f"{results['daily_byproduct_gen']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']/365), format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)], "Monthly": [f"{results['daily_paddy']*results['days_per_month']:,.0f}", f"{results['annual_poha']/12:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']:,.0f}", f"{results['daily_byproduct_sold']*results['days_per_month']:,.0f}", format_currency(results['annual_revenue']/12), format_currency(results['annual_cogs']/12), format_currency(results['gross_profit']/12)], "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']*12:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), format_currency(results['gross_profit'])]}
+    summary_data = {"Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"], "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['annual_poha']/(results['days_per_month']*12):,.0f}", f"{results['daily_byproduct_gen']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']/365), format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)], "Monthly": [f"{results['daily_paddy']*results['days_per_month']:,.0f}", f"{results['annual_poha']/12:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']:,.0f}", f"{results['daily_byproduct_sold']*results['days_per_month']:,.0f}", format_currency(results['annual_revenue']/12), format_currency(results['annual_cogs']/12), format_currency(results['gross_profit']/12)], "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), format_currency(results['gross_profit'])]}
     st.dataframe(pd.DataFrame(summary_data), hide_index=True, use_container_width=True, column_config={"Metric": st.column_config.Column(width="medium"), "Daily": st.column_config.Column(width="small"), "Monthly": st.column_config.Column(width="small"), "Annual": st.column_config.Column(width="small")})
     st.divider()
     st.header("💡 Breakeven Analysis")
@@ -296,7 +286,7 @@ def render_dashboard(inputs):
     rm_cost = results['paddy_rate']
     total_var_cost = rm_cost + results['total_var_cost_per_kg']
     poha_rev = results['poha_price'] * (results['paddy_yield'] / 100)
-    byproduct_rev = results['byproduct_rate_kg'] * min(results['byproduct_sale_percent'] / 100, (100 - results['paddy_yield']) / 100)
+    byproduct_rev = results['byproduct_rate_kg'] * min(results['byproduct_sale_percent'] / 100, (1 - results['paddy_yield'] / 100))
     rev_per_kg = poha_rev + byproduct_rev
     contribution_per_kg = rev_per_kg - total_var_cost
     if breakeven_metric == "EBITDA": fixed_costs, target_metric = results['annual_fixed_opex'], "EBITDA"
@@ -317,22 +307,17 @@ def render_dashboard(inputs):
         if breakeven_vol != float('inf') and breakeven_vol < max_vol: fig.add_vline(x=breakeven_vol, line_dash="dash", line_color="red", annotation_text="Breakeven")
         st.plotly_chart(fig, use_container_width=True)
     st.divider()
-
-    # --- SENSITIVITY ANALYSIS ---
     st.header("🔬 Sensitivity Analysis")
     var_options = ("Poha Selling Price", "Paddy Purchase Rate", "Paddy to Poha Yield", "Interest Rate")
     sensitivity_var = st.selectbox("Variable to analyze:", var_options)
     sensitivity_range = st.slider("Sensitivity range (% change from base value):", -50, 50, (-20, 20))
-    
     var_key = {"Poha Selling Price": 'poha_price', "Paddy Purchase Rate": 'paddy_rate', "Paddy to Poha Yield": 'paddy_yield', "Interest Rate": 'interest_rate'}[sensitivity_var]
     base_val = inputs[var_key]
     range_vals = np.linspace(base_val * (1 + sensitivity_range[0] / 100), base_val * (1 + sensitivity_range[1] / 100), 11)
-    
     sens_data = []
     for val in range_vals:
         res = calculate_financials({**inputs, var_key: val})
         sens_data.append({sensitivity_var: val, "Net Profit": res.get('net_profit', np.nan)})
-    
     sens_df = pd.DataFrame(sens_data).dropna()
     col_sens1, col_sens2 = st.columns([1, 1.5])
     with col_sens1:
@@ -343,7 +328,6 @@ def render_dashboard(inputs):
             fig_sens.update_traces(marker=dict(size=8), line=dict(width=3))
             st.plotly_chart(fig_sens, use_container_width=True)
     st.divider()
-    
     col_pnl, col_bs = st.columns([1.2, 1])
     with col_pnl:
         st.header("💰 Profit & Loss Statement (Annual)")
@@ -359,5 +343,9 @@ def render_dashboard(inputs):
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    inputs = render_sidebar()
-    render_dashboard(inputs)
+    try:
+        inputs = render_sidebar()
+        render_dashboard(inputs)
+    except Exception as e:
+        st.error("An error occurred during the execution of the app. Please check the logs.")
+        st.exception(e)
