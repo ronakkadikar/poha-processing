@@ -141,9 +141,10 @@ def calculate_financials(inputs):
     daily_byproduct_gen = daily_paddy - (daily_paddy * (inputs['paddy_yield'] / 100))
     daily_byproduct_target = daily_paddy * (inputs['byproduct_sale_percent'] / 100)
     daily_byproduct_sold = min(daily_byproduct_target, daily_byproduct_gen)
+    annual_byproduct_sold = daily_byproduct_sold * inputs['days_per_month'] * 12
     byproduct_limit_hit = daily_byproduct_target > daily_byproduct_gen
     annual_poha_revenue = annual_poha * inputs['poha_price']
-    annual_byproduct_revenue = daily_byproduct_sold * inputs['days_per_month'] * 12 * inputs['byproduct_rate_kg']
+    annual_byproduct_revenue = annual_byproduct_sold * inputs['byproduct_rate_kg']
     annual_revenue = annual_poha_revenue + annual_byproduct_revenue
     annual_cogs = annual_paddy * inputs['paddy_rate']
     gross_profit = annual_revenue - annual_cogs
@@ -153,11 +154,11 @@ def calculate_financials(inputs):
     annual_depreciation = (inputs['machinery_cost'] + inputs['civil_work_cost']) / inputs['machinery_useful_life_years'] if inputs['machinery_useful_life_years'] > 0 else 0
     ebit = gross_profit - annual_var_costs - annual_fixed_opex - annual_depreciation
     daily_cogs = annual_cogs / 365
-    daily_poha = annual_poha / (inputs['days_per_month'] * 12)
+    daily_poha_production = annual_poha / (inputs['days_per_month'] * 12)
     daily_prod_cost = (annual_cogs + annual_var_costs) / annual_poha if annual_poha > 0 else 0
     daily_rev = annual_revenue / 365
     rm_inventory = daily_cogs * inputs['rm_inventory_days']
-    fg_inventory = (daily_poha * daily_prod_cost) * inputs['fg_inventory_days']
+    fg_inventory = (daily_poha_production * daily_prod_cost) * inputs['fg_inventory_days']
     receivables = daily_rev * inputs['debtor_days']
     payables = daily_cogs * inputs['creditor_days']
     current_assets = rm_inventory + fg_inventory + receivables
@@ -179,7 +180,7 @@ def calculate_financials(inputs):
     gross_margin = (gross_profit / annual_revenue) * 100 if annual_revenue > 0 else 0
     contribution_margin = annual_revenue - annual_cogs - annual_var_costs
     contribution_margin_pct = (contribution_margin / annual_revenue) * 100 if annual_revenue > 0 else 0
-    return {**inputs, 'total_capex': total_capex, 'daily_paddy': daily_paddy, 'annual_paddy': annual_paddy, 'annual_poha': annual_poha, 'daily_byproduct_gen': daily_byproduct_gen, 'daily_byproduct_sold': daily_byproduct_sold, 'daily_byproduct_target': daily_byproduct_target, 'byproduct_limit_hit': byproduct_limit_hit, 'annual_revenue': annual_revenue, 'annual_cogs': annual_cogs, 'gross_profit': gross_profit, 'annual_var_costs': annual_var_costs, 'annual_fixed_opex': annual_fixed_opex, 'annual_depreciation': annual_depreciation, 'ebit': ebit, 'net_working_capital': net_working_capital, 'equity': equity, 'debt': debt, 'total_interest': total_interest, 'ebt': ebt, 'taxes': taxes, 'net_profit': net_profit, 'roce': roce, 'net_profit_margin': net_profit_margin, 'ebitda': ebitda, 'ebitda_margin': ebitda_margin, 'roe': roe, 'gross_margin': gross_margin, 'contribution_margin': contribution_margin, 'contribution_margin_pct': contribution_margin_pct, 'total_var_cost_per_kg': var_cost_per_kg, 'rm_inventory': rm_inventory, 'fg_inventory': fg_inventory, 'receivables': receivables, 'payables': payables, 'current_assets': current_assets, 'capital_employed': capital_employed, 'total_assets': total_capex + current_assets, 'daily_cogs': daily_cogs, 'daily_prod_cost': daily_prod_cost, 'daily_rev': daily_rev, 'interest_fixed': interest_fixed, 'interest_wc': interest_wc}
+    return {**inputs, 'total_capex': total_capex, 'daily_paddy': daily_paddy, 'annual_paddy': annual_paddy, 'annual_poha': annual_poha, 'daily_byproduct_gen': daily_byproduct_gen, 'daily_byproduct_sold': daily_byproduct_sold, 'annual_byproduct_sold': annual_byproduct_sold, 'daily_byproduct_target': daily_byproduct_target, 'byproduct_limit_hit': byproduct_limit_hit, 'annual_revenue': annual_revenue, 'annual_poha_revenue': annual_poha_revenue, 'annual_byproduct_revenue': annual_byproduct_revenue, 'annual_cogs': annual_cogs, 'gross_profit': gross_profit, 'annual_var_costs': annual_var_costs, 'annual_fixed_opex': annual_fixed_opex, 'annual_depreciation': annual_depreciation, 'ebit': ebit, 'net_working_capital': net_working_capital, 'equity': equity, 'debt': debt, 'total_interest': total_interest, 'ebt': ebt, 'taxes': taxes, 'net_profit': net_profit, 'roce': roce, 'net_profit_margin': net_profit_margin, 'ebitda': ebitda, 'ebitda_margin': ebitda_margin, 'roe': roe, 'gross_margin': gross_margin, 'contribution_margin': contribution_margin, 'contribution_margin_pct': contribution_margin_pct, 'total_var_cost_per_kg': var_cost_per_kg, 'rm_inventory': rm_inventory, 'fg_inventory': fg_inventory, 'receivables': receivables, 'payables': payables, 'current_assets': current_assets, 'capital_employed': capital_employed, 'total_assets': total_capex + current_assets, 'daily_cogs': daily_cogs, 'daily_prod_cost': daily_prod_cost, 'daily_rev': daily_rev, 'interest_fixed': interest_fixed, 'interest_wc': interest_wc}
 
 # --- Reusable Metric Component ---
 def custom_metric(col, label, value, sub_value, info_key):
@@ -190,9 +191,27 @@ def custom_metric(col, label, value, sub_value, info_key):
 # --- Detailed Breakdowns Rendering Function ---
 def render_detailed_breakdowns(results):
     st.header("🔍 Detailed Calculation Breakdowns")
+
+    with st.expander("Revenue Calculation (Annual)"):
+        st.markdown(f"""
+        <p>Total revenue is the sum of income from selling the primary product (Poha) and any byproducts.</p>
+        <strong>1. Poha Revenue:</strong>
+        <ul>
+            <li><b>Calculation:</b> Annual Poha Production ({format_currency(results['annual_poha'])}) &times; Poha Price per kg ({format_currency(results['poha_price'])}) = <b>{format_currency(results['annual_poha_revenue'])}</b></li>
+        </ul>
+        <strong>2. Byproduct Revenue:</strong>
+        <ul>
+            <li><b>Calculation:</b> Annual Byproduct Sold ({format_currency(results['annual_byproduct_sold'])}) &times; Byproduct Price per kg ({format_currency(results['byproduct_rate_kg'])}) = <b>{format_currency(results['annual_byproduct_revenue'])}</b></li>
+        </ul>
+        <strong>3. Final Calculation:</strong>
+        <ul>
+            <li><b>Total Annual Revenue:</b> Poha Revenue ({format_currency(results['annual_poha_revenue'])}) + Byproduct Revenue ({format_currency(results['annual_byproduct_revenue'])}) = <b>{format_currency(results['annual_revenue'])}</b></li>
+        </ul>
+        """, unsafe_allow_html=True)
+
     with st.expander("Working Capital Calculation"):
         st.markdown(f"""
-        <p>Working capital is the cash needed to fund day-to-day operations. It's calculated by subtracting operating current liabilities from operating current assets.[2][9]</p>
+        <p>Working capital is the cash needed to fund day-to-day operations. It's calculated by subtracting operating current liabilities from operating current assets.</p>
         <strong>1. Calculate Current Assets (Money tied up in operations):</strong>
         <ul>
             <li><b>Raw Material Inventory:</b> Daily COGS ({format_currency(results['daily_cogs'])}) &times; {results['rm_inventory_days']} days = <b>{format_currency(results['rm_inventory'])}</b></li>
@@ -212,7 +231,7 @@ def render_detailed_breakdowns(results):
 
     with st.expander("Interest Cost Calculation (Annual)"):
         st.markdown(f"""
-        <p>Interest is calculated on both the term loan for capital assets (CAPEX) and the loan required for working capital.[3]</p>
+        <p>Interest is calculated on both the term loan for capital assets (CAPEX) and the loan required for working capital.</p>
         <strong>1. Interest on Term Loan (CAPEX Loan):</strong>
         <ul>
             <li><b>Total Debt:</b> Total CAPEX ({format_currency(results['total_capex'])}) &times; (100% - {results['equity_contrib']}% Equity) = <b>{format_currency(results['debt'])}</b></li>
@@ -266,7 +285,7 @@ def render_dashboard(inputs):
     custom_metric(row3_col2, "ROE", f"{results['roe']:.1f}%", "", "ROE")
     st.divider()
     st.header("📊 Production & Financial Summary")
-    summary_data = {"Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"], "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['annual_poha']/(results['days_per_month']*12):,.0f}", f"{results['daily_byproduct_gen']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']/365), format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)], "Monthly": [f"{results['daily_paddy']*results['days_per_month']:,.0f}", f"{results['annual_poha']/12:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']:,.0f}", f"{results['daily_byproduct_sold']*results['days_per_month']:,.0f}", format_currency(results['annual_revenue']/12), format_currency(results['annual_cogs']/12), format_currency(results['gross_profit']/12)], "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']*12:,.0f}", f"{results['daily_byproduct_sold']*results['days_per_month']*12:,.0f}", format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), format_currency(results['gross_profit'])]}
+    summary_data = {"Metric": ["Paddy Consumption (kg)", "Poha Production (kg)", "Byproduct Generated (kg)", "Byproduct Sold (kg)", "Total Revenue", "COGS", "Gross Profit"], "Daily": [f"{results['daily_paddy']:,.0f}", f"{results['annual_poha']/(results['days_per_month']*12):,.0f}", f"{results['daily_byproduct_gen']:,.0f}", f"{results['daily_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']/365), format_currency(results['annual_cogs']/365), format_currency(results['gross_profit']/365)], "Monthly": [f"{results['daily_paddy']*results['days_per_month']:,.0f}", f"{results['annual_poha']/12:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']:,.0f}", f"{results['daily_byproduct_sold']*results['days_per_month']:,.0f}", format_currency(results['annual_revenue']/12), format_currency(results['annual_cogs']/12), format_currency(results['gross_profit']/12)], "Annual": [f"{results['annual_paddy']:,.0f}", f"{results['annual_poha']:,.0f}", f"{results['daily_byproduct_gen']*results['days_per_month']*12:,.0f}", f"{results['annual_byproduct_sold']:,.0f}", format_currency(results['annual_revenue']), format_currency(results['annual_cogs']), format_currency(results['gross_profit'])]}
     st.dataframe(pd.DataFrame(summary_data), hide_index=True, use_container_width=True, column_config={"Metric": st.column_config.Column(width="medium"), "Daily": st.column_config.Column(width="small"), "Monthly": st.column_config.Column(width="small"), "Annual": st.column_config.Column(width="small")})
     st.divider()
     st.header("💡 Breakeven Analysis")
@@ -278,23 +297,11 @@ def render_dashboard(inputs):
     byproduct_rev = results['byproduct_rate_kg'] * min(results['byproduct_sale_percent'] / 100, (100 - results['paddy_yield']) / 100)
     rev_per_kg = poha_rev + byproduct_rev
     contribution_per_kg = rev_per_kg - total_var_cost
-    if breakeven_metric == "EBITDA":
-        fixed_costs = results['annual_fixed_opex']
-        target_metric = "EBITDA"
-    else:
-        fixed_costs = results['annual_fixed_opex'] + results['annual_depreciation'] + results['total_interest']
-        target_metric = "Net Profit"
+    if breakeven_metric == "EBITDA": fixed_costs, target_metric = results['annual_fixed_opex'], "EBITDA"
+    else: fixed_costs, target_metric = results['annual_fixed_opex'] + results['annual_depreciation'] + results['total_interest'], "Net Profit"
     breakeven_vol = fixed_costs / contribution_per_kg if contribution_per_kg > 0 else float('inf')
     with st.expander("How is this calculated?"):
-        st.markdown(f"""
-        <p>The breakeven point is where Total Revenue equals Total Costs.[8] The formula is: <b>Breakeven Volume = Total Fixed Costs / Contribution Margin per Unit</b>.[4][10]</p>
-        <ul>
-            <li><b>Selected Metric:</b> {target_metric}</li>
-            <li><b>Total Fixed Costs to Cover:</b> {format_currency(fixed_costs)}</li>
-            <li><b>Contribution Margin per kg of Paddy:</b> (Revenue per kg - Variable Costs per kg) = ({format_currency(rev_per_kg)} - {format_currency(total_var_cost)}) = <b>{format_currency(contribution_per_kg)}</b></li>
-            <li><b>Breakeven Calculation:</b> {format_currency(fixed_costs)} / {format_currency(contribution_per_kg)} = <b>{breakeven_vol:,.0f} kg</b></li>
-        </ul>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<p>The breakeven point is where Total Revenue equals Total Costs. The formula is: <b>Breakeven Volume = Total Fixed Costs / Contribution Margin per Unit</b>.</p><ul><li><b>Selected Metric:</b> {target_metric}</li><li><b>Total Fixed Costs to Cover:</b> {format_currency(fixed_costs)}</li><li><b>Contribution Margin per kg of Paddy:</b> (Revenue per kg - Variable Costs per kg) = ({format_currency(rev_per_kg)} - {format_currency(total_var_cost)}) = <b>{format_currency(contribution_per_kg)}</b></li><li><b>Breakeven Calculation:</b> {format_currency(fixed_costs)} / {format_currency(contribution_per_kg)} = <b>{breakeven_vol:,.0f} kg</b></li></ul>""", unsafe_allow_html=True)
     col_be1, col_be2 = st.columns(2)
     with col_be1:
         st.metric(f"Breakeven Volume ({target_metric})", f"{breakeven_vol:,.0f} kg Paddy/Year")
@@ -308,6 +315,33 @@ def render_dashboard(inputs):
         if breakeven_vol != float('inf') and breakeven_vol < max_vol: fig.add_vline(x=breakeven_vol, line_dash="dash", line_color="red", annotation_text="Breakeven")
         st.plotly_chart(fig, use_container_width=True)
     st.divider()
+
+    # --- SENSITIVITY ANALYSIS ---
+    st.header("🔬 Sensitivity Analysis")
+    var_options = ("Poha Selling Price", "Paddy Purchase Rate", "Paddy to Poha Yield", "Interest Rate")
+    sensitivity_var = st.selectbox("Variable to analyze:", var_options)
+    sensitivity_range = st.slider("Sensitivity range (% change from base value):", -50, 50, (-20, 20))
+    
+    var_key = {"Poha Selling Price": 'poha_price', "Paddy Purchase Rate": 'paddy_rate', "Paddy to Poha Yield": 'paddy_yield', "Interest Rate": 'interest_rate'}[sensitivity_var]
+    base_val = inputs[var_key]
+    range_vals = np.linspace(base_val * (1 + sensitivity_range[0] / 100), base_val * (1 + sensitivity_range[1] / 100), 11)
+    
+    sens_data = []
+    for val in range_vals:
+        res = calculate_financials({**inputs, var_key: val})
+        sens_data.append({sensitivity_var: val, "Net Profit": res.get('net_profit', np.nan)})
+    
+    sens_df = pd.DataFrame(sens_data).dropna()
+    col_sens1, col_sens2 = st.columns([1, 1.5])
+    with col_sens1:
+        st.dataframe(sens_df.style.format({sensitivity_var: '{:,.2f}', 'Net Profit': '{:,.0f}'}), use_container_width=True, hide_index=True)
+    with col_sens2:
+        if not sens_df.empty:
+            fig_sens = px.line(sens_df, x=sensitivity_var, y='Net Profit', title=f"Impact of {sensitivity_var} on Net Profit", markers=True, labels={'Net Profit': 'Net Profit (₹)', sensitivity_var: f'Value of {sensitivity_var}'})
+            fig_sens.update_traces(marker=dict(size=8), line=dict(width=3))
+            st.plotly_chart(fig_sens, use_container_width=True)
+    st.divider()
+    
     col_pnl, col_bs = st.columns([1.2, 1])
     with col_pnl:
         st.header("💰 Profit & Loss Statement (Annual)")
